@@ -46,6 +46,28 @@ def png_dimensions(path: Path) -> tuple[int, int]:
     return struct.unpack(">II", header[16:24])
 
 
+def image_dimensions(path: Path) -> tuple[int, int]:
+    if path.suffix.lower() == ".png":
+        return png_dimensions(path)
+    if not shutil.which("ffprobe"):
+        raise RuntimeError("ffprobe is required to validate non-PNG provider output")
+    completed = subprocess.run(
+        [
+            "ffprobe", "-v", "error", "-select_streams", "v:0",
+            "-show_entries", "stream=width,height", "-of", "json", str(path),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if completed.returncode:
+        raise RuntimeError((completed.stderr or "Unable to inspect provider image")[-2_000:])
+    streams = (json.loads(completed.stdout).get("streams") or [])
+    if not streams:
+        raise RuntimeError("Provider output contains no image stream")
+    return int(streams[0].get("width") or 0), int(streams[0].get("height") or 0)
+
+
 def require_native_4k(width: int, height: int) -> None:
     if width < MASTER_WIDTH or height < MASTER_HEIGHT:
         raise RuntimeError(
@@ -70,9 +92,9 @@ def render_derivatives(native: Path, workspace: Path) -> dict[str, Path]:
     mobile = workspace / "tbtx-tech-art-mobile.webp"
     thumbnail = workspace / "tbtx-tech-art-thumbnail.webp"
 
-    width, height = png_dimensions(native)
+    width, height = image_dimensions(native)
     require_native_4k(width, height)
-    if (width, height) == (MASTER_WIDTH, MASTER_HEIGHT):
+    if native.suffix.lower() == ".png" and (width, height) == (MASTER_WIDTH, MASTER_HEIGHT):
         shutil.copy2(native, master)
     else:
         run(
@@ -201,11 +223,18 @@ def main() -> None:
         model=args.model,
         api_key=api_key,
     )
-    if media_type not in {"image/png", "image/x-png"}:
-        raise RuntimeError(f"Provider returned {media_type}; a lossless PNG master is required")
-    native = workspace / "tbtx-tech-art-native.png"
+    native_suffixes = {
+        "image/png": ".png",
+        "image/x-png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp",
+    }
+    suffix = native_suffixes.get(media_type)
+    if not suffix:
+        raise RuntimeError(f"Provider returned unsupported media type: {media_type}")
+    native = workspace / f"tbtx-tech-art-native{suffix}"
     native.write_bytes(image)
-    native_width, native_height = png_dimensions(native)
+    native_width, native_height = image_dimensions(native)
     require_native_4k(native_width, native_height)
 
     outputs = render_derivatives(native, workspace)
@@ -215,6 +244,8 @@ def main() -> None:
         "status": "staged_for_review",
         "published": False,
         "provider": "openrouter",
+        "provider_media_type": media_type,
+        "native_file": native.name,
         "model": args.model,
         "requested_resolution": "4K",
         "requested_aspect_ratio": "16:9",

@@ -339,9 +339,9 @@ async def queue_status(
     {
         "timestamp": "2026-04-03T...",
         "queues": {
-            "openclaw": 5,
-            "hermes": 2,
-            "agent_zero": 0
+            "alpha": 5,
+            "beta": 2,
+            "gamma": 0
         },
         "total": 7
     }
@@ -366,7 +366,7 @@ async def clear_queue(
     Clear all jobs from a queue (ADMIN ONLY - DESTRUCTIVE).
 
     Query params:
-    - owner: openclaw, hermes, or agent_zero
+    - owner: alpha, beta, or gamma
     - confirm: must be true to actually clear
 
     Returns:
@@ -383,7 +383,7 @@ async def clear_queue(
             "message": "Pass confirm=true to actually clear the queue"
         }
 
-    if owner not in ['openclaw', 'hermes', 'agent_zero']:
+    if owner not in ['alpha', 'beta', 'gamma']:
         raise HTTPException(status_code=400, detail=f"Invalid owner: {owner}")
 
     success = await queue_service.clear_queue(owner)

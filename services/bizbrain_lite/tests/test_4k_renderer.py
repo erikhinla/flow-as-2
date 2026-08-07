@@ -37,3 +37,20 @@ def test_low_resolution_output_is_never_upscaled_and_called_4k(tmp_path: Path) -
     write_png_header(image, 1920, 1080)
     with pytest.raises(RuntimeError, match="refusing to upscale"):
         renderer.require_native_4k(*renderer.png_dimensions(image))
+
+
+def test_provider_jpeg_dimensions_are_inspected_without_relabeling(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    image = tmp_path / "native.jpg"
+    image.write_bytes(b"jpeg-placeholder")
+
+    class Result:
+        returncode = 0
+        stdout = '{"streams":[{"width":4096,"height":2304}]}'
+        stderr = ""
+
+    monkeypatch.setattr(renderer.shutil, "which", lambda _name: "/usr/bin/ffprobe")
+    monkeypatch.setattr(renderer.subprocess, "run", lambda *_args, **_kwargs: Result())
+
+    assert renderer.image_dimensions(image) == (4096, 2304)
