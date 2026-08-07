@@ -30,7 +30,7 @@
     },
     "source": {
       "type": "string",
-      "enum": ["manual", "webhook", "github_action", "scheduled", "discord", "landing_page", "proof"],
+      "enum": ["manual", "webhook", "github_action", "scheduled", "discord", "landing_page", "dashboard", "proof"],
       "description": "Origin of the task"
     },
     "title": {
@@ -133,5 +133,6 @@
       "description": "Current task status"
     }
   },
-  "additionalProperties": false
+  "additionalProperties": true,
+  "description": "Wire-format task envelope (v1). Operator-facing FAAS Task Envelope v2 is normalized into this shape by task_envelope_v2.normalize_task_envelope before validation."
 }

@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     social_hub_api_origin: str = "http://localhost:8000"
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
-    openrouter_model: str = "openai/gpt-4o-mini"
+    openrouter_model: str = "openai/gpt-5.6-terra"
     discord_webhook_url: str = ""
     output_dir: str = "/app/runtime/reviews"
     flow_state_dir: str = "~/.openclaw/state"

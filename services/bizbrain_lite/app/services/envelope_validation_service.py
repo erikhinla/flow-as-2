@@ -56,6 +56,132 @@ def _load_task_envelope_schema() -> Dict[str, Any]:
 
 TASK_ENVELOPE_SCHEMA = _load_task_envelope_schema()
 
+# Default campaign plates for the repository-backed social render lane.
+# Worker also resolves these; stamping at intake makes the job contract explicit.
+DEFAULT_CREATIVE_RENDER_PROFILE = "tbtx_social_concepts_v1"
+DEFAULT_CREATIVE_SOURCE_FILES = [
+    "/workspace/source/campaign/managing-digital-fog-studio.mp4",
+    "/workspace/source/campaign/managing-digital-fog-remote.mp4",
+]
+
+
+def _looks_like_media_or_creative(envelope: Dict[str, Any]) -> bool:
+    """Detect true media/creative jobs (word boundaries — never 'move'≈'mov')."""
+    import re
+
+    try:
+        from app.services.runtime_output_validation import (
+            _scrub_negated_media_phrases,
+            requires_media_artifacts,
+        )
+    except Exception:  # pragma: no cover - import path differences in tests
+        requires_media_artifacts = None  # type: ignore
+        _scrub_negated_media_phrases = lambda s: s  # type: ignore
+
+    output_required = str(envelope.get("output_required") or "")
+    if requires_media_artifacts and requires_media_artifacts(output_required):
+        return True
+
+    blob = " ".join(
+        [
+            str(envelope.get("title") or ""),
+            str(envelope.get("goal") or ""),
+            str(envelope.get("task_type") or ""),
+            output_required,
+        ]
+    ).lower()
+    blob = _scrub_negated_media_phrases(blob)
+    if re.search(r"\b(markdown|text|prose)\s+only\b", blob):
+        return False
+    patterns = (
+        r"\bcreative\b",
+        r"\bconcepts?\b",
+        r"\bvideos?\b",
+        r"\bmp4\b",
+        r"\bmov\b",
+        r"\bstills?\b",
+        r"\bcontact\s+sheets?\b",
+        r"\bwordmarks?\b",
+        r"\bcampaigns?\b",
+        r"\bbillboards?\b",
+        r"\banimatics?\b",
+        r"\brenders?\b",
+        r"\brendered\b",
+        r"\bsocial\s+concepts?\b",
+        r"\bfog\s+reports?\b",
+        r"\bhomepage\s+previews?\b",
+    )
+    return any(re.search(pattern, blob) for pattern in patterns)
+
+
+def normalize_creative_envelope_inputs(envelope: Dict[str, Any]) -> Dict[str, Any]:
+    """Attach media render contract only when the envelope explicitly requires media.
+
+    Architectural rule: once accepted, the envelope is the contract. Soft keyword
+    guesses (campaign/concept/asset) MUST NOT rewrite work type. Auto-stamping is
+    allowed only when ``requires_media_artifacts(output_required)`` is true, or the
+    operator already set ``inputs.render_profile`` / ``render_profile_locked``.
+    """
+    try:
+        from app.services.runtime_output_validation import requires_media_artifacts
+    except Exception:  # pragma: no cover
+        requires_media_artifacts = lambda _s: False  # type: ignore
+
+    envelope = dict(envelope)
+    inputs = dict(envelope.get("inputs") or {})
+    output_required = str(envelope.get("output_required") or "")
+    explicit_profile = str(inputs.get("render_profile") or "").strip()
+    locked = bool(
+        inputs.get("render_profile_locked")
+        or inputs.get("force_render_profile")
+        or inputs.get("force_media_render")
+    )
+    media_required = bool(requires_media_artifacts(output_required))
+
+    # Soft keyword match is diagnostic only — never autostamps alone
+    soft_hit = _looks_like_media_or_creative(envelope)
+    if soft_hit and not media_required and not explicit_profile and not locked:
+        logger.info(
+            "Soft creative keywords present but output_required is non-media; "
+            "leaving envelope unchanged task_id=%s",
+            envelope.get("task_id"),
+        )
+
+    if locked or explicit_profile:
+        # Operator-supplied profile is part of the contract — do not invent plates
+        # unless media is also required and sources missing.
+        if media_required or locked:
+            sources = inputs.get("source_files")
+            if not isinstance(sources, list) or len([s for s in sources if str(s).strip()]) < 2:
+                inputs["source_files"] = list(DEFAULT_CREATIVE_SOURCE_FILES)
+            if not explicit_profile:
+                inputs["render_profile"] = DEFAULT_CREATIVE_RENDER_PROFILE
+            inputs.setdefault("execution_mode", "repository_render_profile")
+        envelope["inputs"] = inputs
+        return envelope
+
+    if not media_required:
+        # Strip accidental soft stamps from clients; do not add profile
+        if inputs.get("execution_mode") == "repository_render_profile" and not locked:
+            inputs.pop("execution_mode", None)
+        envelope["inputs"] = inputs
+        return envelope
+
+    # True media contract from output_required — complete the render lane
+    if not explicit_profile:
+        inputs["render_profile"] = DEFAULT_CREATIVE_RENDER_PROFILE
+        logger.info(
+            "Intake set render_profile=%s for media contract task_id=%s",
+            DEFAULT_CREATIVE_RENDER_PROFILE,
+            envelope.get("task_id"),
+        )
+    sources = inputs.get("source_files")
+    if not isinstance(sources, list) or len([s for s in sources if str(s).strip()]) < 2:
+        inputs["source_files"] = list(DEFAULT_CREATIVE_SOURCE_FILES)
+    inputs.setdefault("execution_mode", "repository_render_profile")
+    envelope["inputs"] = inputs
+    return envelope
+
 
 class EnvelopeValidationService:
     """
@@ -68,7 +194,7 @@ class EnvelopeValidationService:
     """
     
     # Valid values
-    VALID_SOURCES = ['manual', 'webhook', 'github_action', 'scheduled', 'discord', 'landing_page', 'proof']
+    VALID_SOURCES = ['manual', 'webhook', 'github_action', 'scheduled', 'discord', 'landing_page', 'dashboard', 'proof']
     VALID_TASK_TYPES = ['classification', 'rewrite', 'content_prep', 'implementation', 'skill_extraction', 'healthcheck']
     VALID_RISK_TIERS = ['reputation', 'time_loss', 'downtime_security_money']
     VALID_OWNERS = ['alpha', 'beta', 'gamma']
@@ -203,6 +329,9 @@ class EnvelopeValidationService:
         """
         
         logger.info(f"Starting envelope validation: {envelope.get('task_id')}")
+
+        # Step 0: Creative/media jobs get an explicit render contract (not chat-only)
+        envelope = normalize_creative_envelope_inputs(envelope)
         
         # Step 1: Schema validation
         schema_valid, schema_error = EnvelopeValidationService.validate_schema(envelope)
@@ -218,6 +347,32 @@ class EnvelopeValidationService:
         
         # Step 3: Determine owner
         owner = EnvelopeValidationService.determine_owner(envelope)
+
+        # Step 3b: Freeze accepted contract into inputs (immutable for workers)
+        inputs = dict(envelope.get("inputs") or {})
+        v2 = inputs.get("envelope_v2") if isinstance(inputs.get("envelope_v2"), dict) else {}
+        inputs["envelope_contract"] = {
+            "task_id": envelope.get("task_id"),
+            "task_type": envelope.get("task_type"),
+            "work_class": inputs.get("work_class") or v2.get("work_class"),
+            "risk_tier": envelope.get("risk_tier"),
+            "owner": owner,
+            "title": envelope.get("title"),
+            "goal": envelope.get("goal"),
+            "instruction": v2.get("instruction") or envelope.get("goal"),
+            "output_required": envelope.get("output_required"),
+            "required_artifacts": inputs.get("required_artifacts") or v2.get("required_artifacts"),
+            "acceptance_criteria": inputs.get("acceptance_criteria") or v2.get("acceptance_criteria"),
+            "forbidden_actions": inputs.get("forbidden_actions")
+            or (v2.get("scope") or {}).get("forbidden_actions"),
+            "design_lifecycle": inputs.get("design_lifecycle")
+            or (v2.get("creative") or {}).get("design_lifecycle"),
+            "publish_allowed": bool(inputs.get("publish_allowed", False)),
+            "render_profile": (inputs.get("render_profile") or None),
+            "execution_mode": (inputs.get("execution_mode") or None),
+            "frozen_at": datetime.utcnow().isoformat() + "Z",
+        }
+        envelope["inputs"] = inputs
         
         # Step 4: Create job record
         try:
@@ -231,6 +386,9 @@ class EnvelopeValidationService:
                 title=envelope.get('title'),
                 goal=envelope.get('goal'),
                 source=envelope.get('source'),
+                output_required=envelope.get('output_required'),
+                inputs=envelope.get('inputs') or {},
+                review_required=bool(envelope.get('review_required')),
                 created_at=datetime.utcnow(),
                 updated_at=datetime.utcnow(),
             )

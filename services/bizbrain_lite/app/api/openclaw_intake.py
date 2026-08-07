@@ -19,6 +19,7 @@ from app.api.deps import require_api_token
 from app.config.database import get_db_session
 from app.services.envelope_validation_service import EnvelopeValidationService, RoutingService, TASK_ENVELOPE_SCHEMA
 from app.services.input_normalization import normalize_text, normalize_value
+from app.services.task_envelope_v2 import normalize_task_envelope
 from app.services.redis_queue_service import RedisQueueService
 from app.services.audit_service import record_audit_event
 from app.models.flow_job_record import JobStatus
@@ -42,30 +43,60 @@ def get_redis_queue_service() -> RedisQueueService:
 # ============================================================================
 
 class TaskEnvelopeInput(BaseModel):
-    """Input model for task envelope"""
-    task_id: str
-    created_at: str
-    source: str  # manual, webhook, github_action, scheduled
-    title: str
-    goal: str
-    task_type: str  # classification, rewrite, implementation, etc.
-    risk_tier: str  # low, medium, high
+    """Wire + optional FAAS v2 operator fields (normalized before validation)."""
+
+    # System / wire
+    task_id: Optional[str] = None
+    created_at: Optional[str] = None
+    source: str = "dashboard"
+    title: Optional[str] = None
+    goal: Optional[str] = None
+    task_type: Optional[str] = None
+    risk_tier: Optional[str] = None
     preferred_owner: Optional[str] = None
-    owner_role: str
+    owner_role: Optional[str] = None
     inputs: Dict[str, Any] = Field(default_factory=dict)
-    output_required: str
+    output_required: Optional[str] = None
     review_required: Optional[bool] = False
     rollback_required: Optional[bool] = False
     status: str = "pending"
+    priority: Optional[str] = None
 
-    @field_validator("title", "goal", "output_required", mode="before")
-    @classmethod
-    def normalize_text_fields(cls, value: str) -> str:
-        return normalize_text(value)
+    # FAAS Task Envelope v2 operator surface (optional)
+    envelope_schema: Optional[str] = Field(default=None, alias="schema")
+    version: Optional[str] = None
+    work_class: Optional[str] = None
+    instruction: Optional[str] = None
+    success_looks_like: Optional[Any] = None
+    out_of_scope: Optional[Any] = None
+    deliverable: Optional[str] = None
+    required_artifacts: Optional[Any] = None
+    acceptance_criteria: Optional[Any] = None
+    impact_if_wrong: Optional[str] = None
+    scope: Optional[Dict[str, Any]] = None
+    creative: Optional[Dict[str, Any]] = None
+    gates: Optional[Dict[str, Any]] = None
+    reconciliation: Optional[Dict[str, Any]] = None
+    win: Optional[Dict[str, Any]] = None
+    input: Optional[Dict[str, Any]] = None
+    output: Optional[Dict[str, Any]] = None
 
-    @field_validator("inputs", mode="before")
+    model_config = {"populate_by_name": True, "extra": "allow"}
+
+    @field_validator("title", "goal", "output_required", "instruction", "deliverable", mode="before")
     @classmethod
-    def normalize_inputs(cls, value: Dict[str, Any]) -> Dict[str, Any]:
+    def normalize_text_fields(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        if isinstance(value, str):
+            return normalize_text(value)
+        return value
+
+    @field_validator("inputs", "scope", "creative", "gates", "reconciliation", "win", "input", "output", mode="before")
+    @classmethod
+    def normalize_inputs(cls, value: Any) -> Any:
+        if value is None:
+            return value
         return normalize_value(value)
 
 
@@ -141,14 +172,21 @@ async def intake_task(
     }
     """
 
-    # Convert input to dict for validation
-    envelope_dict = envelope.dict()
+    # Normalize FAAS v2 operator form → wire envelope (v1-compatible)
+    try:
+        raw = envelope.model_dump(by_alias=True, exclude_none=False)
+    except Exception:
+        raw = envelope.dict()
+    try:
+        envelope_dict = normalize_task_envelope(raw)
+    except ValueError as exc:
+        return TaskIntakeResponse(status="rejected", error=str(exc))
 
     # Validate and create job
     success, error_msg, job = await EnvelopeValidationService.validate_and_create_job(
         db,
         envelope_dict,
-        source=envelope.source
+        source=envelope_dict.get("source") or envelope.source,
     )
 
     if not success:
@@ -156,12 +194,12 @@ async def intake_task(
         await record_audit_event(
             db,
             event_type=AuditEventType.JOB_SUBMITTED,
-            title=f"Task intake rejected: {envelope.title}",
-            task_id=envelope.task_id,
+            title=f"Task intake rejected: {envelope_dict.get('title')}",
+            task_id=envelope_dict.get("task_id"),
             agent="openclaw",
             action_by="system",
             description=f"Schema validation failed: {error_msg}",
-            event_data={"error": error_msg, "task_type": envelope.task_type},
+            event_data={"error": error_msg, "task_type": envelope_dict.get("task_type")},
         )
         await db.commit()
         return TaskIntakeResponse(
@@ -173,18 +211,20 @@ async def intake_task(
     await record_audit_event(
         db,
         event_type=AuditEventType.JOB_SUBMITTED,
-        title=f"Task intake: {envelope.title}",
+        title=f"Task intake: {envelope_dict.get('title')}",
         job_id=job.job_id,
-        task_id=envelope.task_id,
+        task_id=envelope_dict.get("task_id"),
         agent="openclaw",
-        action_by=envelope.source,
+        action_by=envelope_dict.get("source") or "dashboard",
         description=f"Task submitted for {job.owner} agent",
-        event_data={"task_type": envelope.task_type, "risk_tier": job.risk_tier},
+        event_data={"task_type": envelope_dict.get("task_type"), "risk_tier": job.risk_tier},
     )
     await db.commit()
 
-    # High-risk Agent Zero work must wait for review artifacts before entering the queue.
-    if job.owner == 'agent_zero' and job.risk_tier == 'high' and envelope.review_required:
+    # High-risk Agent Zero (gamma) work waits for review artifacts before queue.
+    is_gamma = job.owner in ("gamma", "agent_zero")
+    is_high_risk = job.risk_tier in ("downtime_security_money", "high")
+    if is_gamma and is_high_risk and envelope_dict.get("review_required"):
         job.status = JobStatus.REVIEW_REQUIRED.value
         db.add(job)
         await db.commit()
@@ -193,9 +233,9 @@ async def intake_task(
         await record_audit_event(
             db,
             event_type=AuditEventType.REVIEW_REQUESTED,
-            title=f"High-risk task held for review: {envelope.title}",
+            title=f"High-risk task held for review: {envelope_dict.get('title')}",
             job_id=job.job_id,
-            task_id=envelope.task_id,
+            task_id=envelope_dict.get("task_id"),
             agent="openclaw",
             action_by="system",
             description="High-risk Agent Zero task waiting for review artifacts and approval",
@@ -221,9 +261,9 @@ async def intake_task(
     await record_audit_event(
         db,
         event_type=AuditEventType.JOB_QUEUED,
-        title=f"Task queued for {job.owner}: {envelope.title}",
+        title=f"Task queued for {job.owner}: {envelope_dict.get('title')}",
         job_id=job.job_id,
-        task_id=envelope.task_id,
+        task_id=envelope_dict.get("task_id"),
         agent="openclaw",
         action_by="system",
         description=f"Task moved to {job.owner} queue for execution",

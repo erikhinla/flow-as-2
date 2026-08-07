@@ -47,27 +47,6 @@ services:
     networks:
       - flow-internal
 
-  notion-flow-bridge:
-    image: node:20-alpine
-    container_name: notion-flow-bridge
-    working_dir: /app
-    command: ["node", "scripts/notion-flow-bridge.mjs"]
-    restart: unless-stopped
-    environment:
-      NOTION_TOKEN: ${NOTION_TOKEN}
-      NOTION_TASKS_DATABASE_ID: ${NOTION_TASKS_DATABASE_ID}
-      FLOW_INTAKE_URL: ${FLOW_INTAKE_URL:-http://bizbrain-lite:8000/v1/intake/task}
-      FLOW_API_TOKEN: ${FLOW_API_TOKEN}
-      POLL_INTERVAL_MS: ${POLL_INTERVAL_MS:-30000}
-      DEFAULT_OWNER: ${DEFAULT_OWNER:-agent_zero}
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-    volumes:
-      - .:/app:ro
-    depends_on:
-      bizbrain-lite:
-        condition: service_healthy
-    networks:
-      - flow-internal
 
   flow-dashboard:
     build:
@@ -78,10 +57,242 @@ services:
     environment:
       DASHBOARD_BASIC_AUTH_USER: ${DASHBOARD_BASIC_AUTH_USER:-admin}
       DASHBOARD_BASIC_AUTH_PASSWORD: ${DASHBOARD_BASIC_AUTH_PASSWORD:-change-me-dashboard-password}
+      BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:?BIZBRAIN_API_TOKEN must be set}
     ports:
       - "5173:80"
     depends_on:
       bizbrain-lite:
+        condition: service_healthy
+    networks:
+      - flow-internal
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.flow-dashboard.rule=Host(`flow.srv1863070.hstgr.cloud`)
+      - traefik.http.routers.flow-dashboard.entrypoints=websecure
+      - traefik.http.routers.flow-dashboard.tls=true
+      - traefik.http.routers.flow-dashboard.tls.certresolver=letsencrypt
+      - traefik.http.services.flow-dashboard.loadbalancer.server.port=80
+
+  hermes-agent:
+    image: nousresearch/hermes-agent@sha256:ca249f4d78f317a6cd3f785940c72801b8abe8c7c4fa019d0c3cd25e5966ca74
+    container_name: hermes-agent
+    restart: unless-stopped
+    command: ["python3", "/flow/hermes_runner.py"]
+    environment:
+      FLOW_RUNTIME_PORT: "18789"
+      FLOW_RUNTIME_TIMEOUT_SECONDS: ${FLOW_RUNTIME_TIMEOUT_SECONDS:-900}
+      HERMES_AGENT_MODEL: ${HERMES_AGENT_MODEL:-openai/gpt-4o-mini}
+      HERMES_UPSTREAM_COMMIT: 7bfbfa3e341a8fe0315170bb7e2ad79e2af44da4
+      HERMES_UID: "1000"
+      HERMES_GID: "1000"
+      HERMES_WRITE_SAFE_ROOT: /opt/data:/workspace
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}
+    volumes:
+      - hermes_data:/opt/data
+      - ./services/agent_runtimes/hermes_runner.py:/flow/hermes_runner.py:ro
+      - ./runtime/agent-workspace:/workspace
+      - ./canon/TBTX_CANON:/workspace/TBTX_CANON:ro
+    expose:
+      - "18789"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18789/health', timeout=10)"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
+    networks:
+      - flow-internal
+
+  openclaw-agent:
+    image: ghcr.io/openclaw/openclaw@sha256:25f5bacf51742c3231d7dd1d319fede009a9d5aeab8b6232cd309ac6475fe82c
+    container_name: openclaw-agent
+    restart: unless-stopped
+    command: ["node", "/flow/openclaw_runner.mjs"]
+    environment:
+      FLOW_RUNTIME_PORT: "18790"
+      FLOW_RUNTIME_TIMEOUT_SECONDS: ${FLOW_RUNTIME_TIMEOUT_SECONDS:-900}
+      OPENCLAW_AGENT_MODEL: ${OPENCLAW_AGENT_MODEL:-openrouter/openai/gpt-4o-mini}
+      OPENCLAW_THINKING: ${OPENCLAW_THINKING:-off}
+      OPENCLAW_FALLBACK_MODEL: ${OPENCLAW_FALLBACK_MODEL:-openai/gpt-4o-mini}
+      OPENCLAW_UPSTREAM_COMMIT: ad3f74f296e5d82009a55d922159713f691e842e
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}
+      HOME: /home/node
+      OPENCLAW_HOME: /home/node
+      OPENCLAW_STATE_DIR: /home/node/.openclaw
+    volumes:
+      - openclaw_data:/home/node/.openclaw
+      - ./runtime/agent-workspace:/home/node/.openclaw/workspace
+      - ./runtime/agent-workspace:/workspace
+      - ./canon/TBTX_CANON:/home/node/.openclaw/workspace/TBTX_CANON:ro
+      - ./services/agent_runtimes/openclaw_runner.mjs:/flow/openclaw_runner.mjs:ro
+    expose:
+      - "18790"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:18790/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 30s
+    networks:
+      - flow-internal
+
+  agent-zero:
+    image: agent0ai/agent-zero@sha256:a7f5ccf351d612c3eaafc708251490277e1d731afe71a2eaf8aa3d871a55ece4
+    container_name: agent-zero
+    restart: unless-stopped
+    environment:
+      WEB_UI_HOST: 0.0.0.0
+      ALLOWED_ORIGINS: http://agent-zero
+      A0_SET_litellm_global_kwargs: '{"max_tokens": ${AGENT_ZERO_MAX_TOKENS:-4096}}'
+      A0_SET_workdir_path: /workspace
+      API_KEY_OPENROUTER: ${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}
+      AGENT_ZERO_UPSTREAM_COMMIT: 87e1e591e1ba2e8b1a19d34e134fcae490c8dded
+    volumes:
+      - agent_zero_data:/a0/usr
+      - ./services/agent_runtimes/agent_zero_presets.yaml:/a0/usr/plugins/_model_config/presets.yaml:rw
+      - ./runtime/agent-workspace:/workspace
+      - ./canon/TBTX_CANON:/workspace/TBTX_CANON:ro
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1/api/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 10
+      start_period: 90s
+    networks:
+      - flow-internal
+
+  flow-hermes-worker:
+    build:
+      context: .
+      dockerfile: services/bizbrain_lite/Dockerfile
+    container_name: flow-hermes-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.queue_worker"]
+    environment:
+      BIZBRAIN_ENV: ${BIZBRAIN_ENV:-prod}
+      BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:-change-me}
+      BIZBRAIN_REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://flow_user:${FLOW_DB_PASSWORD:-change-me}@postgres:5432/flow_agent_os
+      FLOW_STATE_DIR: /root/.openclaw/state
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      FLOW_QUEUE_OWNER: alpha
+      FLOW_EXECUTION_ENGINE: hermes
+      FLOW_RUNTIME_URL: http://hermes-agent:18789
+      FLOW_AGENT_ZERO_RUNTIME_URL: http://agent-zero
+      FLOW_OPENCLAW_RUNTIME_URL: http://openclaw-agent:18790
+      FLOW_QUEUE_TIMEOUT_SECONDS: ${FLOW_QUEUE_TIMEOUT_SECONDS:-5}
+      FLOW_WORKER_LOG_LEVEL: ${FLOW_WORKER_LOG_LEVEL:-INFO}
+      TBTX_CANON_ROOT: /app/canon/TBTX_CANON
+      FLOW_AGENT_WORKSPACE: /workspace
+    volumes:
+      - ${HOME}/.openclaw/state:/root/.openclaw/state
+      - ./runtime/reviews:/app/runtime/reviews
+      - ./runtime/queues:/app/runtime/queues
+      - ./runtime/agent-workspace:/workspace
+      - ./canon/TBTX_CANON:/app/canon/TBTX_CANON:ro
+    depends_on:
+      bizbrain-lite:
+        condition: service_healthy
+      hermes-agent:
+        condition: service_healthy
+      openclaw-agent:
+        condition: service_healthy
+      agent-zero:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - flow-internal
+
+  flow-openclaw-worker:
+    build:
+      context: .
+      dockerfile: services/bizbrain_lite/Dockerfile
+    container_name: flow-openclaw-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.queue_worker"]
+    environment:
+      BIZBRAIN_ENV: ${BIZBRAIN_ENV:-prod}
+      BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:-change-me}
+      BIZBRAIN_REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://flow_user:${FLOW_DB_PASSWORD:-change-me}@postgres:5432/flow_agent_os
+      FLOW_STATE_DIR: /root/.openclaw/state
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      FLOW_QUEUE_OWNER: beta
+      FLOW_EXECUTION_ENGINE: openclaw
+      FLOW_RUNTIME_URL: http://openclaw-agent:18790
+      FLOW_QUEUE_TIMEOUT_SECONDS: ${FLOW_QUEUE_TIMEOUT_SECONDS:-5}
+      FLOW_WORKER_LOG_LEVEL: ${FLOW_WORKER_LOG_LEVEL:-INFO}
+      TBTX_CANON_ROOT: /app/canon/TBTX_CANON
+      FLOW_AGENT_WORKSPACE: /workspace
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      AGENT_ZERO_FALLBACK_MODEL: ${AGENT_ZERO_FALLBACK_MODEL:-openai/gpt-4o-mini}
+    volumes:
+      - ${HOME}/.openclaw/state:/root/.openclaw/state
+      - ./runtime/reviews:/app/runtime/reviews
+      - ./runtime/queues:/app/runtime/queues
+      - ./runtime/agent-workspace:/workspace
+      - ./canon/TBTX_CANON:/app/canon/TBTX_CANON:ro
+    depends_on:
+      bizbrain-lite:
+        condition: service_healthy
+      openclaw-agent:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - flow-internal
+
+  flow-agent-zero-worker:
+    build:
+      context: .
+      dockerfile: services/bizbrain_lite/Dockerfile
+    container_name: flow-agent-zero-worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.workers.queue_worker"]
+    environment:
+      BIZBRAIN_ENV: ${BIZBRAIN_ENV:-prod}
+      BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:-change-me}
+      BIZBRAIN_REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://flow_user:${FLOW_DB_PASSWORD:-change-me}@postgres:5432/flow_agent_os
+      FLOW_STATE_DIR: /root/.openclaw/state
+      DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      FLOW_QUEUE_OWNER: gamma
+      FLOW_EXECUTION_ENGINE: agent_zero
+      FLOW_RUNTIME_URL: http://agent-zero
+      FLOW_QUEUE_TIMEOUT_SECONDS: ${FLOW_QUEUE_TIMEOUT_SECONDS:-5}
+      FLOW_WORKER_LOG_LEVEL: ${FLOW_WORKER_LOG_LEVEL:-INFO}
+      TBTX_CANON_ROOT: /app/canon/TBTX_CANON
+      FLOW_AGENT_WORKSPACE: /workspace
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      AGENT_ZERO_FALLBACK_MODEL: ${AGENT_ZERO_FALLBACK_MODEL:-openai/gpt-4o-mini}
+      AGENT_ZERO_HTTP_ENABLED: ${AGENT_ZERO_HTTP_ENABLED:-false}
+      AGENT_ZERO_PREFER_OPENROUTER: ${AGENT_ZERO_PREFER_OPENROUTER:-true}
+      AGENT_ZERO_FALLBACK_MODEL_2: ${AGENT_ZERO_FALLBACK_MODEL_2:-x-ai/grok-4.3}
+      AGENT_ZERO_MODEL: ${AGENT_ZERO_MODEL:-openai/gpt-4o-mini}
+    volumes:
+      - ./services/bizbrain_lite/app/services/redis_queue_service.py:/app/app/services/redis_queue_service.py:ro
+      - ./services/bizbrain_lite/app/workers/queue_worker.py:/app/app/workers/queue_worker.py:ro
+      - ${HOME}/.openclaw/state:/root/.openclaw/state
+      - ./runtime/reviews:/app/runtime/reviews
+      - ./runtime/queues:/app/runtime/queues
+      - ./runtime/agent-workspace:/workspace
+      - ./canon/TBTX_CANON:/app/canon/TBTX_CANON:ro
+    depends_on:
+      bizbrain-lite:
+        condition: service_healthy
+      agent-zero:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     networks:
       - flow-internal
@@ -145,3 +356,6 @@ volumes:
   intake_data:
   redis_data:
   postgres_data:
+  hermes_data:
+  openclaw_data:
+  agent_zero_data:
