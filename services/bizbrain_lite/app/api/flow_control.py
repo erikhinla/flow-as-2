@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -12,6 +12,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import require_api_token
 from app.config.database import get_db_session
 from app.models.flow_job_record import JobRecord
+from app.api.openclaw_intake import (
+    TaskEnvelopeInput,
+    get_redis_queue_service,
+    intake_task,
+)
+from app.services.redis_queue_service import RedisQueueService
 from app.services.flow_filesystem_control import (
     FlowControlError,
     approve_task,
@@ -20,7 +26,6 @@ from app.services.flow_filesystem_control import (
     get_state_root,
     list_tasks,
     runtime_status,
-    submit_task,
 )
 
 
@@ -33,7 +38,7 @@ class SubmitRequest(BaseModel):
     risk_tier: str
     owner_role: str | None = None
     source: str = "landing_page"
-    task_type: str = Field(default="internal_review", min_length=3, max_length=100)
+    task_type: str = Field(default="classification", min_length=3, max_length=100)
     inputs: dict[str, Any] = Field(default_factory=dict)
     output_required: str = "Artifact written to ~/.openclaw/state/artifacts/{task_id}/"
 
@@ -251,11 +256,20 @@ async def model_job_file(
 
 
 @router.get("/tasks")
-async def flow_tasks(queue: str | None = None) -> dict[str, Any]:
-    try:
-        return {"tasks": list_tasks(queue=queue)}
-    except FlowControlError as exc:
-        raise _handle_flow_error(exc)
+async def flow_tasks(
+    queue: str | None = None,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
+    """Compatibility list backed by the canonical Postgres execution plane."""
+    payload = await model_jobs(db)
+    if not queue:
+        return payload
+    tasks = [
+        task
+        for task in payload["tasks"]
+        if task.get("status") == queue or task.get("owner_role") == queue
+    ]
+    return {"tasks": tasks}
 
 
 @router.get("/tasks/{task_id}")
@@ -267,12 +281,20 @@ async def flow_task(task_id: str) -> dict[str, Any]:
 
 
 @router.post("/submit")
-async def flow_submit(request: SubmitRequest) -> dict[str, Any]:
-    try:
-        task = submit_task(request.model_dump(), actor=request.source)
-        return {"status": "accepted", "task": task}
-    except FlowControlError as exc:
-        raise _handle_flow_error(exc)
+async def flow_submit(
+    request: SubmitRequest,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db_session),
+    queue_service: RedisQueueService = Depends(get_redis_queue_service),
+) -> dict[str, Any]:
+    """Compatibility submit route that uses the canonical Redis/Postgres intake."""
+    response = await intake_task(
+        TaskEnvelopeInput(**request.model_dump()),
+        background_tasks,
+        db,
+        queue_service,
+    )
+    return response.model_dump()
 
 
 @router.get("/tasks/{task_id}/artifact")

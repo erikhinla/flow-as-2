@@ -17,6 +17,7 @@ from typing import Tuple, Dict, Any, Optional
 from datetime import datetime
 
 import jsonschema
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.flow_job_record import JobRecord, JobStatus, AgentOwner, TaskType, RiskTier
@@ -59,10 +60,22 @@ TASK_ENVELOPE_SCHEMA = _load_task_envelope_schema()
 # Default campaign plates for the repository-backed social render lane.
 # Worker also resolves these; stamping at intake makes the job contract explicit.
 DEFAULT_CREATIVE_RENDER_PROFILE = "tbtx_social_concepts_v1"
+FOUR_K_TECH_ART_PROFILE = "tbtx_4k_tech_art_v1"
 DEFAULT_CREATIVE_SOURCE_FILES = [
     "/workspace/source/campaign/managing-digital-fog-studio.mp4",
     "/workspace/source/campaign/managing-digital-fog-remote.mp4",
 ]
+
+
+def _render_profile_for_contract(output_required: str) -> str:
+    import re
+
+    contract = output_required.lower()
+    asks_for_video = bool(re.search(r"\b(video|videos|mp4|mov|webm|animatic)s?\b", contract))
+    asks_for_image = bool(re.search(r"\b(image|images|png|jpe?g|webp|hero art|tech art)\b", contract))
+    if asks_for_image and not asks_for_video:
+        return FOUR_K_TECH_ART_PROFILE
+    return DEFAULT_CREATIVE_RENDER_PROFILE
 
 
 def _looks_like_media_or_creative(envelope: Dict[str, Any]) -> bool:
@@ -151,11 +164,19 @@ def normalize_creative_envelope_inputs(envelope: Dict[str, Any]) -> Dict[str, An
         # Operator-supplied profile is part of the contract — do not invent plates
         # unless media is also required and sources missing.
         if media_required or locked:
-            sources = inputs.get("source_files")
-            if not isinstance(sources, list) or len([s for s in sources if str(s).strip()]) < 2:
-                inputs["source_files"] = list(DEFAULT_CREATIVE_SOURCE_FILES)
             if not explicit_profile:
-                inputs["render_profile"] = DEFAULT_CREATIVE_RENDER_PROFILE
+                explicit_profile = _render_profile_for_contract(output_required)
+                inputs["render_profile"] = explicit_profile
+            if explicit_profile == DEFAULT_CREATIVE_RENDER_PROFILE:
+                sources = inputs.get("source_files")
+                if not isinstance(sources, list) or len([s for s in sources if str(s).strip()]) < 2:
+                    inputs["source_files"] = list(DEFAULT_CREATIVE_SOURCE_FILES)
+            elif explicit_profile == FOUR_K_TECH_ART_PROFILE:
+                inputs.setdefault("reference_files", [])
+                inputs.setdefault(
+                    "creative_prompt",
+                    str(envelope.get("goal") or envelope.get("title") or ""),
+                )
             inputs.setdefault("execution_mode", "repository_render_profile")
         envelope["inputs"] = inputs
         return envelope
@@ -169,15 +190,22 @@ def normalize_creative_envelope_inputs(envelope: Dict[str, Any]) -> Dict[str, An
 
     # True media contract from output_required — complete the render lane
     if not explicit_profile:
-        inputs["render_profile"] = DEFAULT_CREATIVE_RENDER_PROFILE
+        inputs["render_profile"] = _render_profile_for_contract(output_required)
         logger.info(
             "Intake set render_profile=%s for media contract task_id=%s",
-            DEFAULT_CREATIVE_RENDER_PROFILE,
+            inputs["render_profile"],
             envelope.get("task_id"),
         )
-    sources = inputs.get("source_files")
-    if not isinstance(sources, list) or len([s for s in sources if str(s).strip()]) < 2:
-        inputs["source_files"] = list(DEFAULT_CREATIVE_SOURCE_FILES)
+    if inputs["render_profile"] == DEFAULT_CREATIVE_RENDER_PROFILE:
+        sources = inputs.get("source_files")
+        if not isinstance(sources, list) or len([s for s in sources if str(s).strip()]) < 2:
+            inputs["source_files"] = list(DEFAULT_CREATIVE_SOURCE_FILES)
+    else:
+        inputs.setdefault("reference_files", [])
+        inputs.setdefault(
+            "creative_prompt",
+            str(envelope.get("goal") or envelope.get("title") or ""),
+        )
     inputs.setdefault("execution_mode", "repository_render_profile")
     envelope["inputs"] = inputs
     return envelope
@@ -251,11 +279,8 @@ class EnvelopeValidationService:
         
         risk_tier = envelope.get('risk_tier')
         owner_role = envelope.get('owner_role') or envelope.get('preferred_owner')
-        expected_owner = EnvelopeValidationService.ROUTING_RULES.get(risk_tier)
-        if expected_owner is None:
+        if EnvelopeValidationService.ROUTING_RULES.get(risk_tier) is None:
             return False, f"Invalid risk_tier '{risk_tier}'. Must be one of {list(EnvelopeValidationService.ROUTING_RULES.keys())}"
-        if owner_role and owner_role != expected_owner:
-            return False, f"Invalid routing combination: risk_tier={risk_tier} requires owner_role={expected_owner}"
 
         # Rule 1: Gamma requires review
         if risk_tier == 'downtime_security_money' and not envelope.get('review_required'):
@@ -400,10 +425,14 @@ class EnvelopeValidationService:
             logger.info(f"Job created: {job.job_id}, owner={owner}, status=VALIDATED")
             return True, None, job
         
+        except IntegrityError:
+            await db.rollback()
+            logger.info("Rejected duplicate task_id=%s", envelope.get("task_id"))
+            return False, "Task ID already exists", None
         except Exception as e:
             logger.error(f"Error creating job record: {e}", exc_info=True)
             await db.rollback()
-            return False, f"Failed to create job: {str(e)}", None
+            return False, "Failed to create job", None
 
 
 class RoutingService:

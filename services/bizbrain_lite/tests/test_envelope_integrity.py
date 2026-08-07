@@ -22,6 +22,7 @@ from app.services.envelope_validation_service import (  # noqa: E402
     normalize_creative_envelope_inputs,
     EnvelopeValidationService,
 )
+from app.services.task_envelope_v2 import normalize_task_envelope  # noqa: E402
 from app.workers.queue_worker import (  # noqa: E402
     resolve_creative_inputs,
     _looks_like_creative_task,
@@ -114,6 +115,39 @@ def test_locked_profile_preserved_without_media_words() -> None:
     assert resolved.get("render_profile") == "tbtx_social_concepts_v1"
 
 
+def test_explicit_4k_profile_does_not_invent_social_video_sources() -> None:
+    envelope = {
+        "task_id": "4k-art-1",
+        "title": "Render 4K tech art",
+        "goal": "Create one native-resolution hero composition for review",
+        "task_type": "content_prep",
+        "output_required": "One 3840x2160 PNG and responsive WebP image derivatives",
+        "inputs": {
+            "render_profile": "tbtx_4k_tech_art_v1",
+            "creative_prompt": "A deliberately detailed production prompt " * 4,
+        },
+    }
+    out = normalize_creative_envelope_inputs(envelope)
+    assert out["inputs"]["render_profile"] == "tbtx_4k_tech_art_v1"
+    assert out["inputs"].get("source_files") is None
+    assert out["inputs"].get("reference_files") == []
+
+
+def test_image_contract_auto_selects_4k_profile() -> None:
+    envelope = {
+        "task_id": "4k-auto-1",
+        "title": "Homepage hero artwork",
+        "goal": "Create a photorealistic, emotionally precise TransformBy10X hero composition for staged review.",
+        "task_type": "content_prep",
+        "output_required": "One native 3840x2160 PNG image plus desktop and mobile WebP derivatives",
+        "inputs": {},
+    }
+    out = normalize_creative_envelope_inputs(envelope)
+    assert out["inputs"]["render_profile"] == "tbtx_4k_tech_art_v1"
+    assert out["inputs"]["creative_prompt"] == envelope["goal"]
+    assert out["inputs"].get("source_files") is None
+
+
 def test_soft_keywords_alone_do_not_force_media() -> None:
     # Critical: intake must not stamp without a true media output contract
     env = {
@@ -143,6 +177,62 @@ def test_owner_from_risk_tier() -> None:
         )
         == "alpha"
     )
+
+
+def test_normalizer_handles_explicit_null_win() -> None:
+    envelope = normalize_task_envelope(
+        {
+            "title": "Null win proof",
+            "instruction": "Prove a null win object cannot crash intake.",
+            "work_class": "healthcheck",
+            "impact_if_wrong": "time",
+            "win": None,
+        }
+    )
+    assert envelope["title"] == "Null win proof"
+    assert envelope["owner_role"] == "beta"
+
+
+def test_normalizer_rejects_missing_title() -> None:
+    with pytest.raises(ValueError, match="title is required"):
+        normalize_task_envelope(
+            {
+                "instruction": "Reject this envelope because it has no title.",
+                "work_class": "healthcheck",
+            }
+        )
+
+
+def test_normalizer_rejects_invalid_task_type() -> None:
+    with pytest.raises(ValueError, match="invalid work_class/task_type"):
+        normalize_task_envelope(
+            {
+                "title": "Invalid task type",
+                "instruction": "Reject an unknown work class instead of coercing it.",
+                "work_class": "invented_work",
+            }
+        )
+
+
+def test_explicit_owner_override_is_recorded_without_weakening_risk_gate() -> None:
+    envelope = normalize_task_envelope(
+        {
+            "title": "Gamma controlled proof",
+            "instruction": "Route this bounded implementation probe through Agent Zero.",
+            "work_class": "implementation",
+            "impact_if_wrong": "time",
+            "preferred_owner": "gamma",
+            "gates": {"review_required": True, "rollback_required": True},
+        }
+    )
+    derived = envelope["inputs"]["envelope_v2"]["derived"]
+    assert envelope["risk_tier"] == "time_loss"
+    assert envelope["owner_role"] == "gamma"
+    assert envelope["review_required"] is True
+    assert derived["risk_owner"] == "beta"
+    assert derived["requested_owner"] == "gamma"
+    assert derived["routing_reason"] == "approved explicit owner override"
+    assert EnvelopeValidationService.validate_business_rules(envelope) == (True, None)
     assert (
         EnvelopeValidationService.determine_owner(
             {"risk_tier": "time_loss", "owner_role": "beta"}

@@ -33,7 +33,7 @@ services:
       - ./runtime/reviews:/app/runtime/reviews
       - ./runtime/queues:/app/runtime/queues
     ports:
-      - "18001:8000"
+      - "127.0.0.1:18001:8000"
     depends_on:
       postgres:
         condition: service_healthy

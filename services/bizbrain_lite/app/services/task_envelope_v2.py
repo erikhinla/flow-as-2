@@ -122,8 +122,11 @@ def normalize_task_envelope(raw: dict[str, Any] | None) -> dict[str, Any]:
 
     # --- resolve core operator fields ---
     title = str(data.get("title") or "").strip()
+    if len(title) < 5:
+        raise ValueError("title is required and must be at least 5 characters")
     instruction = str(data.get("instruction") or data.get("goal") or "").strip()
-    success = data.get("success_looks_like") or data.get("win", {}).get("success_condition")
+    win = data.get("win") if isinstance(data.get("win"), dict) else {}
+    success = data.get("success_looks_like") or win.get("success_condition")
     if isinstance(success, list):
         success_text = "; ".join(str(s).strip() for s in success if str(s).strip())
     else:
@@ -147,15 +150,32 @@ def normalize_task_envelope(raw: dict[str, Any] | None) -> dict[str, Any]:
     acceptance = _as_list(data.get("acceptance_criteria"))
 
     # work class / task type
-    work_class = str(data.get("work_class") or data.get("task_type") or "content_prep").strip()
+    explicit_work_class = data.get("work_class") or data.get("task_type")
+    work_class = str(explicit_work_class or "content_prep").strip()
+    if explicit_work_class and work_class not in WORK_CLASS_TO_TASK_TYPE:
+        raise ValueError(
+            f"invalid work_class/task_type '{work_class}'; "
+            f"allowed values: {sorted(WORK_CLASS_TO_TASK_TYPE)}"
+        )
     task_type = WORK_CLASS_TO_TASK_TYPE.get(work_class, work_class)
-    if task_type not in WORK_CLASS_TO_TASK_TYPE.values() and task_type not in WORK_CLASS_TO_TASK_TYPE:
-        task_type = "content_prep"
 
     # risk / owner
     impact = str(data.get("impact_if_wrong") or data.get("risk_tier") or "reputation").strip().lower()
     risk_tier = IMPACT_TO_RISK.get(impact, impact if impact in RISK_TO_OWNER else "reputation")
-    owner = RISK_TO_OWNER[risk_tier]
+    risk_owner = RISK_TO_OWNER[risk_tier]
+    requested_owner = str(
+        data.get("owner_role") or data.get("preferred_owner") or ""
+    ).strip()
+    if requested_owner and requested_owner not in RISK_TO_OWNER.values():
+        raise ValueError(
+            f"invalid preferred_owner '{requested_owner}'; allowed values: alpha, beta, gamma"
+        )
+    owner = requested_owner or risk_owner
+    routing_reason = (
+        "approved explicit owner override"
+        if requested_owner and requested_owner != risk_owner
+        else "risk-tier routing"
+    )
 
     priority_raw = str(data.get("priority") or "normal").strip().lower()
     priority = PRIORITY_MAP.get(priority_raw, "normal")
@@ -325,7 +345,10 @@ def normalize_task_envelope(raw: dict[str, Any] | None) -> dict[str, Any]:
         "derived": {
             "task_type": task_type,
             "risk_tier": risk_tier,
+            "requested_owner": requested_owner or None,
+            "risk_owner": risk_owner,
             "owner_role": owner,
+            "routing_reason": routing_reason,
             "engine": {"alpha": "hermes", "beta": "openclaw", "gamma": "agent_zero"}[owner],
         },
     }
@@ -349,7 +372,7 @@ def normalize_task_envelope(raw: dict[str, Any] | None) -> dict[str, Any]:
         "task_id": task_id,
         "created_at": created_at,
         "source": source,
-        "title": title or instruction[:80] or "FAAS task",
+        "title": title,
         "goal": goal,
         "task_type": task_type,
         "risk_tier": risk_tier,
@@ -362,10 +385,5 @@ def normalize_task_envelope(raw: dict[str, Any] | None) -> dict[str, Any]:
         "rollback_required": rollback_required,
         "status": str(data.get("status") or "pending"),
     }
-
-    if len(wire["title"]) < 5:
-        wire["title"] = (wire["title"] + " task").strip()
-        if len(wire["title"]) < 5:
-            wire["title"] = "FAAS task brief"
 
     return wire

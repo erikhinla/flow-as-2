@@ -76,7 +76,7 @@
     "owner_role": {
       "type": "string",
       "enum": ["alpha", "beta", "gamma"],
-      "description": "Assigned FLOW role. Must match risk_tier routing."
+      "description": "Assigned FLOW role. May be an explicit validated override; risk-tier review requirements still apply."
     },
     "inputs": {
       "type": "object",

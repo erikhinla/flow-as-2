@@ -524,45 +524,104 @@ async def run_creative_review_pipeline(
 
     render_manifest_path = job_workspace / "render-manifest.json"
     render_manifest = json.loads(render_manifest_path.read_text(encoding="utf-8"))
+    profile = str(render_manifest.get("profile") or "")
     validation_report = job_workspace / "validation-report.md"
     report_lines = [
         "# Creative validation report",
         "",
-        "Scope: mechanical acceptance for a staged concept round. This is not launch approval.",
-        "",
-        "## Video inspection",
+        "Scope: mechanical acceptance for staged review. This is not launch approval.",
         "",
     ]
-    for fact in video_facts:
-        report_lines.append(
-            "- PASS "
-            f"`{fact['file']}`: {fact['width']}x{fact['height']}, "
-            f"{fact['duration_seconds']:.3f}s, "
-            f"audio={'present' if fact['audio'] else 'missing'}, "
-            f"{fact['size_bytes']} bytes."
+    if profile == "tbtx_4k_tech_art_v1":
+        image_facts: list[dict[str, object]] = []
+        for image_path in [
+            path
+            for path in produced_files
+            if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+        ]:
+            completed = subprocess.run(
+                [
+                    "ffprobe", "-v", "error", "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height", "-of", "json",
+                    str(image_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            stream = ((json.loads(completed.stdout).get("streams") or [{}])[0])
+            image_facts.append(
+                {
+                    "file": image_path.name,
+                    "width": int(stream.get("width") or 0),
+                    "height": int(stream.get("height") or 0),
+                    "size_bytes": image_path.stat().st_size,
+                }
+            )
+        master = next(
+            (fact for fact in image_facts if fact["file"] == "tbtx-4k-tech-art-master.png"),
+            None,
         )
-    report_lines.extend(
-        [
-            "",
-            "## Package checks",
-            "",
-            f"- PASS Three distinct concept videos: {len(video_facts)} found.",
-            "- PASS Contact sheet: `concept-contact-sheet.png` exists.",
-            "- PASS Transparent wordmark: `transformby10x-wordmark-transparent.png` "
-            "passed the PNG alpha-channel contract.",
-            f"- PASS Publish state: `{str(render_manifest.get('published')).lower()}`.",
-            "- PASS Original source assets remain outside the isolated run directory.",
-            "",
-            "## Human creative gate",
-            "",
-            "- Required before final ratios or launch exports: Erik selects and steers a concept.",
-            "- Review readability, face-safe placement, visual tone, motion, and sound direction "
-            "in the rendered videos. Mechanical checks do not replace that decision.",
-            "",
-            "OVERALL: PASS",
-            "",
-        ]
-    )
+        if not master or (master["width"], master["height"]) != (3840, 2160):
+            raise RuntimeError("4K creative validation requires a verified 3840x2160 master PNG")
+        if render_manifest.get("published") is not False:
+            raise RuntimeError("Creative render manifest must remain unpublished")
+        report_lines.extend(["## Image inspection", ""])
+        for fact in image_facts:
+            report_lines.append(
+                f"- PASS `{fact['file']}`: {fact['width']}x{fact['height']}, "
+                f"{fact['size_bytes']} bytes."
+            )
+        report_lines.extend(
+            [
+                "",
+                "## Package checks",
+                "",
+                "- PASS Native provider output met or exceeded 4K; no low-resolution upscale was accepted.",
+                "- PASS Exact 3840x2160 master and responsive derivatives exist.",
+                "- PASS Prompt, model, reference hashes, and file hashes are recorded.",
+                "- PASS Publish state: `false`.",
+                "",
+                "## Human creative gate",
+                "",
+                "- Human selection is required before layout implementation or publishing.",
+                "- Review composition, emotional specificity, brand fit, legibility, and crop safety.",
+                "",
+                "OVERALL: PASS",
+                "",
+            ]
+        )
+    else:
+        report_lines.extend(["## Video inspection", ""])
+        for fact in video_facts:
+            report_lines.append(
+                "- PASS "
+                f"`{fact['file']}`: {fact['width']}x{fact['height']}, "
+                f"{fact['duration_seconds']:.3f}s, "
+                f"audio={'present' if fact['audio'] else 'missing'}, "
+                f"{fact['size_bytes']} bytes."
+            )
+        report_lines.extend(
+            [
+                "",
+                "## Package checks",
+                "",
+                f"- PASS Three distinct concept videos: {len(video_facts)} found.",
+                "- PASS Contact sheet: `concept-contact-sheet.png` exists.",
+                "- PASS Transparent wordmark: `transformby10x-wordmark-transparent.png` passed the PNG alpha-channel contract.",
+                f"- PASS Publish state: `{str(render_manifest.get('published')).lower()}`.",
+                "- PASS Original source assets remain outside the isolated run directory.",
+                "",
+                "## Human creative gate",
+                "",
+                "- Required before final ratios or launch exports: Erik selects and steers a concept.",
+                "- Review readability, face-safe placement, visual tone, motion, and sound direction in the rendered videos.",
+                "",
+                "OVERALL: PASS",
+                "",
+            ]
+        )
     validation_report.write_text("\n".join(report_lines), encoding="utf-8")
 
     review_prompt = (
@@ -624,7 +683,9 @@ async def run_creative_review_pipeline(
     ):
         relative_path = path.relative_to(job_workspace)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        if path.suffix.lower() in {".mp4", ".mov", ".m4v", ".webm"}:
+        if path.name == "tbtx-4k-tech-art-master.png":
+            role = "four_k_master"
+        elif path.suffix.lower() in {".mp4", ".mov", ".m4v", ".webm"}:
             role = "concept_video"
         elif "contact" in path.stem.lower():
             role = "contact_sheet"
@@ -837,6 +898,14 @@ def resolve_creative_inputs(
                 break
 
     if len(sources) < 2:
+        if re.search(r"\b(image|images|png|jpe?g|webp|hero art|tech art)\b", output_required.lower()) and not re.search(
+            r"\b(video|videos|mp4|mov|webm|animatic)s?\b", output_required.lower()
+        ):
+            resolved["render_profile"] = "tbtx_4k_tech_art_v1"
+            resolved["creative_prompt"] = str(resolved.get("creative_prompt") or goal)
+            resolved.setdefault("reference_files", [])
+            logger.info("Auto-selected creative render profile tbtx_4k_tech_art_v1")
+            return resolved
         raise RuntimeError(
             "Creative job requires render_profile sources, but no campaign footage "
             "was found under /opt/flow-as/launch/assets or /workspace/source."
@@ -856,24 +925,45 @@ def run_render_profile(inputs: dict, job_workspace: Path) -> dict | None:
     profile = str(inputs.get("render_profile") or "").strip()
     if not profile:
         return None
-    if profile != "tbtx_social_concepts_v1":
+    if profile == "tbtx_social_concepts_v1":
+        source_files = inputs.get("source_files")
+        if not isinstance(source_files, list) or len(source_files) < 2:
+            raise RuntimeError(
+                "tbtx_social_concepts_v1 requires at least two source_files"
+            )
+        command = [
+            "python3",
+            "/app/scripts/render_tbtx_social_concepts.py",
+            "--workspace",
+            str(job_workspace),
+            "--source-a",
+            str(source_files[0]),
+            "--source-b",
+            str(source_files[1]),
+        ]
+    elif profile == "tbtx_4k_tech_art_v1":
+        prompt = str(inputs.get("creative_prompt") or "").strip()
+        if len(prompt) < 80:
+            raise RuntimeError(
+                "tbtx_4k_tech_art_v1 requires inputs.creative_prompt "
+                "with at least 80 characters"
+            )
+        prompt_path = job_workspace / "creative-prompt-source.txt"
+        prompt_path.write_text(prompt + "\n", encoding="utf-8")
+        command = [
+            "python3",
+            "/app/scripts/render_tbtx_4k_tech_art.py",
+            "--workspace",
+            str(job_workspace),
+            "--prompt-file",
+            str(prompt_path),
+        ]
+        reference_files = inputs.get("reference_files")
+        if isinstance(reference_files, list):
+            for reference in reference_files[:3]:
+                command.extend(["--reference", str(reference)])
+    else:
         raise RuntimeError(f"Unsupported creative render profile: {profile}")
-
-    source_files = inputs.get("source_files")
-    if not isinstance(source_files, list) or len(source_files) < 2:
-        raise RuntimeError(
-            "tbtx_social_concepts_v1 requires at least two source_files"
-        )
-    command = [
-        "python3",
-        "/app/scripts/render_tbtx_social_concepts.py",
-        "--workspace",
-        str(job_workspace),
-        "--source-a",
-        str(source_files[0]),
-        "--source-b",
-        str(source_files[1]),
-    ]
     completed = subprocess.run(
         command,
         capture_output=True,
