@@ -74,7 +74,7 @@ services:
       - traefik.http.services.flow-dashboard.loadbalancer.server.port=80
 
   hermes-agent:
-    image: nousresearch/hermes-agent@sha256:ca249f4d78f317a6cd3f785940c72801b8abe8c7c4fa019d0c3cd25e5966ca74
+    image: nousresearch/hermes-agent@sha256:16788311e2fa3035456bdc1bafb8ec2b1777db64ebf020af9bb7eb73c3712c9e
     container_name: hermes-agent
     restart: unless-stopped
     command: ["python3", "/flow/hermes_runner.py"]
@@ -104,7 +104,7 @@ services:
       - flow-internal
 
   openclaw-agent:
-    image: ghcr.io/openclaw/openclaw@sha256:25f5bacf51742c3231d7dd1d319fede009a9d5aeab8b6232cd309ac6475fe82c
+    image: ghcr.io/openclaw/openclaw@sha256:6a31d44b2944e7adcd2b582bf6fb463111264ebca97a0201795b799135bd102c
     container_name: openclaw-agent
     restart: unless-stopped
     command: ["node", "/flow/openclaw_runner.mjs"]
@@ -137,7 +137,7 @@ services:
       - flow-internal
 
   agent-zero:
-    image: agent0ai/agent-zero@sha256:a7f5ccf351d612c3eaafc708251490277e1d731afe71a2eaf8aa3d871a55ece4
+    image: agent0ai/agent-zero@sha256:8c5eff81a46fc956bc247e01a345beadc09acbeecf31873324b843dacf937c4c
     container_name: agent-zero
     restart: unless-stopped
     environment:
