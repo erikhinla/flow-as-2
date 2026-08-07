@@ -16,6 +16,7 @@ COPY services/bizbrain_lite/alembic.ini /app/alembic.ini
 COPY services/bizbrain_lite/app /app/app
 COPY services/bizbrain_lite/docs /app/docs
 COPY scripts /app/scripts
+COPY briefs /app/briefs
 COPY schemas /app/schemas
 COPY alembic /app/alembic
 

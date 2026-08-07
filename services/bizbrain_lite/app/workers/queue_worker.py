@@ -942,14 +942,30 @@ def run_render_profile(inputs: dict, job_workspace: Path) -> dict | None:
             str(source_files[1]),
         ]
     elif profile == "tbtx_4k_tech_art_v1":
-        prompt = str(inputs.get("creative_prompt") or "").strip()
+        prompt_file = str(inputs.get("creative_prompt_file") or "").strip()
+        prompt_path: Path
+        if prompt_file:
+            prompt_path = Path(prompt_file).resolve()
+            allowed_prompt_roots = (
+                Path("/app/briefs").resolve(),
+                Path("/app/canon/TBTX_CANON").resolve(),
+            )
+            if not any(prompt_path.is_relative_to(root) for root in allowed_prompt_roots):
+                raise RuntimeError(
+                    "creative_prompt_file must be inside /app/briefs or /app/canon/TBTX_CANON"
+                )
+            if not prompt_path.is_file():
+                raise RuntimeError(f"Creative prompt file not found: {prompt_path}")
+            prompt = prompt_path.read_text(encoding="utf-8").strip()
+        else:
+            prompt = str(inputs.get("creative_prompt") or "").strip()
+            prompt_path = job_workspace / "creative-prompt-source.txt"
+            prompt_path.write_text(prompt + "\n", encoding="utf-8")
         if len(prompt) < 80:
             raise RuntimeError(
-                "tbtx_4k_tech_art_v1 requires inputs.creative_prompt "
-                "with at least 80 characters"
+                "tbtx_4k_tech_art_v1 requires inputs.creative_prompt or "
+                "inputs.creative_prompt_file with at least 80 characters"
             )
-        prompt_path = job_workspace / "creative-prompt-source.txt"
-        prompt_path.write_text(prompt + "\n", encoding="utf-8")
         command = [
             "python3",
             "/app/scripts/render_tbtx_4k_tech_art.py",
