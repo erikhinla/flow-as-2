@@ -647,7 +647,7 @@ def main() -> None:
         "[1:v]zoompan=z='min(zoom+0.00016,1.024)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=150:s=1920x1080:fps=30[v1];"
         "[2:v]zoompan=z='min(zoom+0.0002,1.03)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=150:s=1920x1080:fps=30[v2];"
         "[v0][v1][v2]concat=n=3:v=1:a=0,format=yuv420p[v];"
-        "[3:a]volume=0.028,afade=t=in:st=0:d=.5,afade=t=out:st=14:d=1[a]"
+        "[3:a]volume=0.028,afade=t=in:st=0:d=0.5,afade=t=out:st=14:d=1[a]"
     )
     run([
         "ffmpeg", "-y",
