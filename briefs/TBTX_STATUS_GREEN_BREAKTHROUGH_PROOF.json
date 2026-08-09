@@ -1,0 +1,101 @@
+{
+  "schema": "faas.task_envelope",
+  "version": "2.0",
+  "task_id": "19b33b9f-cb33-4030-8776-b69efa6c172e",
+  "created_at": "2026-08-09T06:41:18Z",
+  "source": "codex",
+  "title": "Create the Status: Green campaign breakthrough proof",
+  "instruction": "Read the TransformBy10X Ecosystem Brand Bible and Creative Execution Standard completely. Produce one campaign-level Work-lane hero image around a single idea: the official status is green while the physical evidence says the operation is failing. The image must feel like observed evidence from real work, not a software illustration. Stage it for human review only. Do not publish it and do not turn the visual choices into a permanent identity system.",
+  "success_looks_like": [
+    "One native-resolution 4K image makes the Status: Green contradiction understandable before any explanatory copy is read.",
+    "The result feels sophisticated, precise, industrially weighted, human, and campaign-ready without looking corporate, decorative, cyberpunk, or like a SaaS template.",
+    "The staged package contains responsive derivatives, provenance, mechanical validation, semantic review, and the mandatory creative self-evaluation."
+  ],
+  "out_of_scope": [
+    "Publishing or deployment",
+    "A logo lockup or logo-led header",
+    "A permanent palette, typography system, icon system, or identity decision",
+    "Multiple concept rounds",
+    "A generic AI control-room or floating-dashboard composition"
+  ],
+  "work_class": "creative_export",
+  "impact_if_wrong": "public",
+  "priority": "urgent",
+  "deliverable": "One staged 4K campaign image package for the Status: Green Work-lane concept, ready for the human 8+/10 creative gate.",
+  "required_artifacts": [
+    "tbtx-4k-tech-art-master.png",
+    "tbtx-tech-art-desktop.webp",
+    "tbtx-tech-art-mobile.webp",
+    "tbtx-tech-art-thumbnail.webp",
+    "creative-prompt.txt",
+    "render-manifest.json",
+    "creative-self-evaluation.json",
+    "validation-report.md",
+    "package-manifest.json"
+  ],
+  "acceptance_criteria": [
+    "Both mounted creative authorities are read before evaluation.",
+    "The concept can be stated in one sentence: the status is green because the reporting system has become detached from the work.",
+    "The master is a verified native 3840x2160 PNG; low-resolution upscaling is rejected.",
+    "Desktop, mobile, and thumbnail derivatives are staged with the master.",
+    "The scene is photorealistic and built from operator-recognizable evidence: duplicate plans, an unowned handoff, approval residue, cables, labels, and one pristine green status signal.",
+    "No logo, floating interface, glossy SaaS dashboard, humanoid robot, circuit-brain motif, neon cyberpunk treatment, or generated headline text appears in the image.",
+    "The visual has controlled tension, emotional specificity, usable negative space, and a deliberate crop on both desktop and mobile.",
+    "The render manifest records model, prompt, dimensions, hashes, references, and published=false.",
+    "Every mandatory self-evaluation category passes before the package is offered for human review.",
+    "The result remains provisional and unpublished until Erik gives an 8+/10 human approval."
+  ],
+  "scope": {
+    "repository": "/workspace",
+    "allowed_paths": [
+      "/workspace/jobs/19b33b9f-cb33-4030-8776-b69efa6c172e"
+    ],
+    "allowed_actions": [
+      "read",
+      "write_artifacts",
+      "render_media",
+      "validate",
+      "stage_for_review"
+    ],
+    "forbidden_actions": [
+      "publish",
+      "deploy",
+      "delete",
+      "change_routing",
+      "declare_final_design",
+      "infer_additional_objectives"
+    ],
+    "reference_material": [
+      "/app/canon/TBTX_CANON/TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
+      "/app/canon/TBTX_CANON/CREATIVE_EXECUTION_STANDARD.md"
+    ],
+    "constraints": [
+      "Use visual choices because they serve this campaign idea, not because they belong to a pre-approved palette.",
+      "The green signal is story evidence, not a permanent brand color decision.",
+      "Keep the person incidental and unposed; the system failure is the subject."
+    ]
+  },
+  "creative": {
+    "campaign": "Status: Green.",
+    "project": "Founder-led Work / Life campaign system",
+    "asset_label": "Status Green hero proof 01",
+    "defined_use": "Provisional campaign hero art for the Work lane and campaign review; not a permanent identity lock.",
+    "primary_mode": "campaign",
+    "design_lifecycle": "provisional_review"
+  },
+  "gates": {
+    "review_required": true,
+    "rollback_required": false,
+    "publish_allowed": false
+  },
+  "inputs": {
+    "render_profile": "tbtx_4k_tech_art_v1",
+    "render_profile_locked": true,
+    "force_media_render": true,
+    "reference_files": [],
+    "creative_prompt": "Create a native 4K, 16:9, photorealistic cinematic campaign image set in a real operations project room just before dawn. The central story is a single pristine GREEN STATUS SIGNAL glowing calmly while the physical evidence around it proves the work is failing: two contradictory printed project plans, a handoff note with no owner, stacked approval stamps, crossed-out dates, cables, open folders, duplicated materials, and one small label that suggests another so-called final version without relying on readable generated text. A mid-40s operator is present only in partial profile or from behind, still and observant rather than posed, realizing that the reporting layer and the real work have separated. Sophisticated, precise, human, and industrially weighted, with controlled tension, tactile materials, deep natural shadow, quiet early-morning light, and detail that experienced operators recognize. Compose it as authored campaign photography with strong negative space for separately typeset copy and a mobile-safe central story. The contradiction should register immediately without explanation. No logo. No logo-led header. No headline rendered inside the image. No glossy SaaS dashboard, floating interface, hologram, humanoid robot, circuit brain, neon cyberpunk, generic corporate team, decorative technology, presentation-slide layout, or stock-photo handshake. The green light serves this exact Status: Green campaign idea and must not imply a permanent brand palette. The image will be paired separately with the line: The project is green. It is staged for human review and is not approved for publication."
+  },
+  "review_required": true,
+  "rollback_required": false,
+  "status": "ready"
+}
