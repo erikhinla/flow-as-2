@@ -1,8 +1,8 @@
 {
   "schema": "faas.task_envelope",
   "version": "2.0",
-  "task_id": "15c9166b-2829-494c-a0b0-52a6f0582040",
-  "created_at": "2026-08-09T06:45:00Z",
+  "task_id": "bd872fcc-3256-4e92-9975-e795863cd41c",
+  "created_at": "2026-08-09T06:52:23Z",
   "source": "dashboard",
   "title": "Create the Status: Green campaign breakthrough proof",
   "instruction": "Read the TransformBy10X Ecosystem Brand Bible and Creative Execution Standard completely. Produce one campaign-level Work-lane hero image around a single idea: the official status is green while the physical evidence says the operation is failing. The image must feel like observed evidence from real work, not a software illustration. Stage it for human review only. Do not publish it and do not turn the visual choices into a permanent identity system.",
@@ -41,7 +41,7 @@
   "scope": {
     "repository": "/workspace",
     "allowed_paths": [
-      "/workspace/jobs/15c9166b-2829-494c-a0b0-52a6f0582040"
+      "/workspace/jobs/bd872fcc-3256-4e92-9975-e795863cd41c"
     ],
     "allowed_actions": [
       "read",
