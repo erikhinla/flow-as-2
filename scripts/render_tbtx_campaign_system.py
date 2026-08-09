@@ -214,8 +214,8 @@ CSS = r"""
   }
 }
 * { box-sizing: border-box; }
-html { background: var(--canvas); scroll-behavior: smooth; }
-body { margin: 0; min-width: 320px; background: var(--canvas); color: var(--ink); font-family: var(--font-body); }
+html { max-width: 100%; overflow-x: clip; background: var(--canvas); scroll-behavior: smooth; }
+body { margin: 0; min-width: 320px; max-width: 100%; overflow-x: clip; background: var(--canvas); color: var(--ink); font-family: var(--font-body); }
 a { color: inherit; }
 button, a { -webkit-tap-highlight-color: transparent; }
 button { font: inherit; }
@@ -226,7 +226,7 @@ button { font: inherit; }
 .rail nav a { color: var(--muted); font: 600 12px/1 var(--font-body); text-decoration: none; }
 .rail nav a:hover, .rail nav a:focus-visible { color: var(--ink); }
 .hero { min-height: calc(100dvh - 68px); display: grid; grid-template-columns: minmax(0,.86fr) minmax(520px,1.14fr); align-items: stretch; }
-.hero-copy { display: flex; flex-direction: column; justify-content: center; padding: clamp(54px, 7vw, 108px) clamp(24px, 5.3vw, 86px); position: relative; z-index: 2; }
+.hero-copy { min-width: 0; display: flex; flex-direction: column; justify-content: center; padding: clamp(54px, 7vw, 108px) clamp(24px, 5.3vw, 86px); position: relative; z-index: 2; }
 .status { display: inline-flex; align-items: center; gap: 10px; width: fit-content; margin-bottom: 30px; color: var(--signal); font: 700 11px/1 var(--font-mono); letter-spacing: .11em; text-transform: uppercase; }
 .lamp { width: 11px; height: 11px; background: var(--signal); box-shadow: 0 0 0 5px color-mix(in srgb, var(--signal) 12%, transparent); }
 h1, h2, p { margin-top: 0; }
@@ -328,7 +328,7 @@ h1 { max-width: 760px; margin-bottom: 24px; font: 800 clamp(52px, 6.1vw, 100px)/
   .hero, .page-shell, .result-stage { min-height: calc(100dvh - 58px); grid-template-columns: 1fr; }
   .hero-copy { min-height: 52dvh; padding: 48px 20px 32px; }
   .status { margin-bottom: 20px; }
-  h1 { font-size: clamp(48px, 15vw, 72px); }
+  h1 { max-width: 100%; font-size: clamp(44px, 13.2vw, 54px); }
   .hero-media { padding: 0 20px 28px; }
   .bezel { min-height: 43dvh; }
   .evidence { grid-template-columns: 1fr; }
