@@ -82,13 +82,15 @@ services:
       FLOW_RUNTIME_PORT: "18789"
       FLOW_RUNTIME_TIMEOUT_SECONDS: ${FLOW_RUNTIME_TIMEOUT_SECONDS:-900}
       HERMES_AGENT_MODEL: ${HERMES_AGENT_MODEL:-openai/gpt-4o-mini}
-      HERMES_UPSTREAM_COMMIT: 7bfbfa3e341a8fe0315170bb7e2ad79e2af44da4
+      HERMES_UPSTREAM_COMMIT: 3c27eb6234bf91b8ceee9e9071591b31e9b148cb
       HERMES_UID: "1000"
       HERMES_GID: "1000"
       HERMES_WRITE_SAFE_ROOT: /opt/data:/workspace
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}
     volumes:
       - hermes_data:/opt/data
+      - ./config/hermes/SOUL.md:/opt/data/SOUL.md:ro
+      - ./config/hermes/skills:/opt/data/skills:ro
       - ./services/agent_runtimes/hermes_runner.py:/flow/hermes_runner.py:ro
       - ./runtime/agent-workspace:/workspace
       - ./canon/TBTX_CANON:/workspace/TBTX_CANON:ro
@@ -115,7 +117,7 @@ services:
       OPENCLAW_AGENT_MODEL: ${OPENCLAW_AGENT_MODEL:-openrouter/openai/gpt-4o-mini}
       OPENCLAW_THINKING: ${OPENCLAW_THINKING:-off}
       OPENCLAW_FALLBACK_MODEL: ${OPENCLAW_FALLBACK_MODEL:-openai/gpt-4o-mini}
-      OPENCLAW_UPSTREAM_COMMIT: ad3f74f296e5d82009a55d922159713f691e842e
+      OPENCLAW_UPSTREAM_COMMIT: 2d2ddc43d0dcf71f31283d780f9fe9ff4cc04fe4
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}
       HOME: /home/node
       OPENCLAW_HOME: /home/node
@@ -148,7 +150,7 @@ services:
       A0_SET_litellm_global_kwargs: '{"max_tokens": ${AGENT_ZERO_MAX_TOKENS:-4096}}'
       A0_SET_workdir_path: /workspace
       API_KEY_OPENROUTER: ${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}
-      AGENT_ZERO_UPSTREAM_COMMIT: 87e1e591e1ba2e8b1a19d34e134fcae490c8dded
+      AGENT_ZERO_UPSTREAM_COMMIT: 5ff106a2d489d17c2a3b378521a8f29fb29cf77d
     volumes:
       - agent_zero_data:/a0/usr
       - ./services/agent_runtimes/agent_zero_presets.yaml:/a0/usr/plugins/_model_config/presets.yaml:rw

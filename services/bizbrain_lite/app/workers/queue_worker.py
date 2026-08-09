@@ -59,6 +59,26 @@ CREATIVE_EVALUATION_CATEGORIES = (
     "Emotion / Curiosity",
     "Brand",
 )
+CREATIVE_PRODUCTION_PLAN_FIELDS = (
+    "homepage_headline",
+    "homepage_lede",
+    "evidence_line",
+    "friction_headline",
+    "friction_body",
+    "diagnostic_question",
+    "personal_social_title",
+    "personal_social_copy",
+    "business_social_title",
+    "business_social_copy",
+    "doctrine_social_title",
+    "doctrine_social_copy",
+    "motion_scene_one_title",
+    "motion_scene_one_copy",
+    "motion_scene_two_title",
+    "motion_scene_two_copy",
+    "motion_scene_three_title",
+    "motion_scene_three_copy",
+)
 
 # ── System prompts per agent ──────────────────────────────────────────────────
 
@@ -177,6 +197,115 @@ def validate_creative_self_evaluation(job_workspace: Path, primary_mode: str) ->
     if failed:
         raise RuntimeError("Creative self-evaluation did not pass: " + ", ".join(failed))
     return evaluation_path
+
+
+def validate_creative_production_plan(job_workspace: Path, primary_mode: str) -> Path:
+    """Require a binding agent-authored production decision before rendering."""
+    plan_path = job_workspace / "creative-production-plan.json"
+    if not plan_path.is_file() or plan_path.is_symlink():
+        raise RuntimeError(
+            "Producing agent did not create creative-production-plan.json"
+        )
+    if plan_path.stat().st_size > 96_000:
+        raise RuntimeError("creative-production-plan.json exceeds the 96 KB limit")
+    try:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("creative-production-plan.json is not valid JSON") from exc
+    if plan.get("schema") != "faas.creative_production_plan":
+        raise RuntimeError("Creative production plan has the wrong schema")
+    if plan.get("primary_mode") != primary_mode:
+        raise RuntimeError("Creative production plan primary_mode does not match the contract")
+    canon_files = set(plan.get("canon_files_read") or [])
+    if not set(CREATIVE_CANON_FILES).issubset(canon_files):
+        raise RuntimeError("Creative production plan does not prove every authority was read")
+    concept = str(plan.get("concept") or "").strip()
+    thesis = str(plan.get("campaign_thesis") or "").strip()
+    if len(concept) < 12 or len(thesis) < 40:
+        raise RuntimeError("Creative production plan is missing a usable concept and thesis")
+    visual_system = plan.get("visual_system")
+    if not isinstance(visual_system, dict):
+        raise RuntimeError("Creative production plan is missing visual_system")
+    for field in (
+        "material_direction",
+        "composition_logic",
+        "light_behavior",
+        "source_footage_role",
+        "template_rejection",
+    ):
+        if len(str(visual_system.get(field) or "").strip()) < 20:
+            raise RuntimeError(f"Creative production plan visual_system.{field} is incomplete")
+    copy = plan.get("copy")
+    if not isinstance(copy, dict):
+        raise RuntimeError("Creative production plan is missing copy decisions")
+    missing_copy = [
+        field
+        for field in CREATIVE_PRODUCTION_PLAN_FIELDS
+        if len(str(copy.get(field) or "").strip()) < 4
+    ]
+    if missing_copy:
+        raise RuntimeError(
+            "Creative production plan is missing copy fields: " + ", ".join(missing_copy)
+        )
+    actions = plan.get("production_actions")
+    if not isinstance(actions, list) or len(actions) < 3:
+        raise RuntimeError("Creative production plan requires at least three production actions")
+    return plan_path
+
+
+def build_creative_production_prompt(
+    *,
+    job_workspace: Path,
+    primary_mode: str,
+    inputs: dict,
+    title: str,
+    goal: str,
+) -> str:
+    """Give the owning agent creative authority before deterministic export."""
+    source_files = inputs.get("source_files")
+    sources = source_files if isinstance(source_files, list) else []
+    return (
+        "# Role\n"
+        "You are the primary producing agent, not a reviewer. Make the binding creative "
+        "decisions that the export renderer must follow.\n\n"
+        f"# Assignment\nTitle: {title}\nGoal: {goal}\n"
+        f"Primary mode: {primary_mode}\nWorkspace: {job_workspace}\n\n"
+        "Read all three authorities from /app/canon/TBTX_CANON/: "
+        + ", ".join(CREATIVE_CANON_FILES)
+        + ". Inspect every available source file with your tools before deciding. "
+        "The brand characteristics are sophisticated, precise, industrially weighted, "
+        "technically clear, and capable of campaign-level impact. Do not impose a permanent "
+        "logo, typeface, palette, icon set, or token system. Do not use a default logo header "
+        "or a familiar SaaS template.\n\n"
+        f"Source files:\n{json.dumps(sources, indent=2)}\n\n"
+        "Write exactly one binding JSON artifact to "
+        f"{job_workspace / 'creative-production-plan.json'}. The renderer will consume it. "
+        "Do not write the self-evaluation yet and do not merely describe what another agent "
+        "should do. Use this exact structure:\n"
+        "{\n"
+        '  "schema": "faas.creative_production_plan",\n'
+        '  "version": "1.0",\n'
+        f'  "primary_mode": {json.dumps(primary_mode)},\n'
+        f'  "canon_files_read": {json.dumps(list(CREATIVE_CANON_FILES))},\n'
+        '  "concept": "one memorable campaign sentence",\n'
+        '  "campaign_thesis": "the human/business tension and the movement it creates",\n'
+        '  "audience_tension": "specific lived contradiction",\n'
+        '  "visual_system": {\n'
+        '    "material_direction": "physical materials selected for this idea",\n'
+        '    "composition_logic": "how scale, depth, negative space, and information behave",\n'
+        '    "light_behavior": "how light carries story rather than decoration",\n'
+        '    "source_footage_role": "subordinate evidence role for supplied footage",\n'
+        '    "template_rejection": "specific generic patterns forbidden in this execution"\n'
+        "  },\n"
+        '  "copy": {\n'
+        + "".join(f'    "{field}": "finished public-facing line",\n' for field in CREATIVE_PRODUCTION_PLAN_FIELDS[:-1])
+        + f'    "{CREATIVE_PRODUCTION_PLAN_FIELDS[-1]}": "finished public-facing line"\n'
+        "  },\n"
+        '  "production_actions": ["specific action", "specific action", "specific action"]\n'
+        "}\n\n"
+        "Every public line must sound spoken, use contractions naturally, avoid AI/consulting "
+        "hype, and preserve Fog-Lift, BizBuilders AI, and BizBot routing from Canon."
+    )
 
 
 # ── Agent runtime execution ───────────────────────────────────────────────────
@@ -431,7 +560,7 @@ async def _call_agent_zero_http(
             "upstream_repository": "https://github.com/agent0ai/agent-zero",
             "upstream_commit": os.getenv(
                 "AGENT_ZERO_UPSTREAM_COMMIT",
-                "87e1e591e1ba2e8b1a19d34e134fcae490c8dded",
+                "5ff106a2d489d17c2a3b378521a8f29fb29cf77d",
             ),
         }
 
@@ -1189,9 +1318,9 @@ def run_render_profile(inputs: dict, job_workspace: Path) -> dict | None:
                 command.extend(["--reference", str(reference)])
     elif profile == "tbtx_campaign_system_v1":
         source_files = inputs.get("source_files")
-        if not isinstance(source_files, list) or len(source_files) < 2:
+        if not isinstance(source_files, list) or len(source_files) < 4:
             raise RuntimeError(
-                "tbtx_campaign_system_v1 requires at least two source_files"
+                "tbtx_campaign_system_v1 requires two footage sources and two physical material plates"
             )
         command = [
             "python3",
@@ -1202,9 +1331,16 @@ def run_render_profile(inputs: dict, job_workspace: Path) -> dict | None:
             str(source_files[0]),
             "--source-b",
             str(source_files[1]),
+            "--material-a",
+            str(source_files[2]),
+            "--material-b",
+            str(source_files[3]),
         ]
     else:
         raise RuntimeError(f"Unsupported creative render profile: {profile}")
+    production_plan = job_workspace / "creative-production-plan.json"
+    if profile == "tbtx_campaign_system_v1" and production_plan.is_file():
+        command.extend(["--production-plan", str(production_plan)])
     completed = subprocess.run(
         command,
         capture_output=True,
@@ -1527,6 +1663,45 @@ async def worker_loop(owner: str, timeout: int) -> None:
                         job_workspace=job_workspace,
                         session=llm_session,
                     )
+                active_creative_contract = creative_contract(creative_inputs)
+                workflow_evidence: list[dict] = []
+                producer_runtime: dict | None = None
+                if (
+                    active_creative_contract
+                    and str(creative_inputs.get("render_profile") or "")
+                    == "tbtx_campaign_system_v1"
+                ):
+                    primary_mode = str(
+                        active_creative_contract.get("creative_mode") or "campaign"
+                    )
+                    producer_prompt = build_creative_production_prompt(
+                        job_workspace=job_workspace,
+                        primary_mode=primary_mode,
+                        inputs=creative_inputs,
+                        title=effective_title,
+                        goal=effective_goal,
+                    )
+                    producer_runtime = await call_agent_runtime(
+                        prompt=producer_prompt,
+                        job_id=f"{job_id}-creative-production",
+                        model_decision=model_decision,
+                    )
+                    production_plan_path = validate_creative_production_plan(
+                        job_workspace,
+                        primary_mode,
+                    )
+                    workflow_evidence.append(
+                        {
+                            "stage": "agent_creative_production",
+                            "status": "completed",
+                            "path": str(production_plan_path),
+                            "worker": producer_runtime.get("engine"),
+                            "execution_mode": producer_runtime.get("execution_mode"),
+                            "model": producer_runtime.get("model"),
+                            "toolsets": producer_runtime.get("toolsets") or [],
+                            "skills": producer_runtime.get("skills") or [],
+                        }
+                    )
                 render_manifest = run_render_profile(creative_inputs, job_workspace)
                 if render_manifest is None:
                     # Chat-only agent path cannot satisfy a true media contract.
@@ -1544,20 +1719,34 @@ async def worker_loop(owner: str, timeout: int) -> None:
                     runtime_result["model_decision"] = model_decision
                     output = validate_runtime_output(runtime_result["final"])
                 else:
-                    runtime_result = {
-                        "ok": True,
-                        "engine": "hermes",
-                        "execution_mode": "repository_render_profile",
-                        "render_profile": str(creative_inputs.get("render_profile")),
-                        "manifest_path": str(job_workspace / "render-manifest.json"),
-                    }
+                    runtime_result = dict(producer_runtime or {})
+                    runtime_result.update(
+                        {
+                            "ok": True,
+                            "engine": str(
+                                runtime_result.get("engine")
+                                or os.getenv("FLOW_EXECUTION_ENGINE", owner)
+                            ),
+                            "execution_mode": (
+                                "agent_led_repository_production"
+                                if producer_runtime
+                                else "repository_render_profile"
+                            ),
+                            "render_profile": str(creative_inputs.get("render_profile")),
+                            "manifest_path": str(job_workspace / "render-manifest.json"),
+                            "production_plan_path": (
+                                str(job_workspace / "creative-production-plan.json")
+                                if producer_runtime
+                                else None
+                            ),
+                            "model_decision": model_decision,
+                        }
+                    )
                     output = (
-                        "Hermes production lane completed the assigned repository-backed "
-                        "profile and staged the following manifest:\n\n"
+                        f"{runtime_result['engine']} created the binding production decisions; "
+                        "the repository export engine staged the following manifest:\n\n"
                         + json.dumps(render_manifest, indent=2)
                     )
-                active_creative_contract = creative_contract(creative_inputs)
-                workflow_evidence: list[dict] = []
                 if active_creative_contract:
                     evaluation_prompt = (
                         "You are the producing creative agent completing the mandatory self-evaluation. "

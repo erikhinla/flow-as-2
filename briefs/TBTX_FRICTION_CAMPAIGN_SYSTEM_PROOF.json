@@ -1,7 +1,7 @@
 {
   "schema": "faas.task_envelope",
   "version": "2.0",
-  "task_id": "8cb6e352-5ed7-4571-ab5c-9d0b738585f9",
+  "task_id": "c614d756-c574-457b-8f38-813965564f3f",
   "created_at": "2026-08-09T15:24:00Z",
   "source": "dashboard",
   "title": "Build the connected Digital Fog to Digital Friction campaign proof",
@@ -45,6 +45,7 @@
   "acceptance_criteria": [
     "Campaign Mode is primary and the idea can be stated in one sentence: software reports activity while people and businesses absorb the cost of missing context, ownership, and routing.",
     "The homepage has no default logo-in-header treatment and does not look like a SaaS template.",
+    "Dominant imagery is physically constructed from optical glass, machined steel, resin, copper, and architectural light; the original footage appears only as subordinate lived-condition evidence.",
     "The working diagnostic allows Personal and Business route selection and includes functional selection, loading, error, and result behavior.",
     "Personal Fog routes to Fog-Lift; Business Friction routes to BizBuilders AI; BizBot remains downstream until readiness.",
     "Six real Chromium captures prove homepage, diagnostic, and result states on desktop and mobile.",
@@ -57,7 +58,7 @@
   "scope": {
     "repository": "/workspace",
     "allowed_paths": [
-      "/workspace/jobs/8cb6e352-5ed7-4571-ab5c-9d0b738585f9"
+      "/workspace/jobs/c614d756-c574-457b-8f38-813965564f3f"
     ],
     "allowed_actions": [
       "read",
@@ -111,7 +112,9 @@
     "force_media_render": true,
     "source_files": [
       "/workspace/source/campaign/managing-digital-fog-studio.mp4",
-      "/workspace/source/campaign/managing-digital-fog-remote.mp4"
+      "/workspace/source/campaign/managing-digital-fog-remote.mp4",
+      "/workspace/source/campaign/physical-routing-instrument-v1.png",
+      "/workspace/source/campaign/handoff-architecture-v1.png"
     ]
   },
   "review_required": true,

@@ -5,6 +5,7 @@ not reinterpret work type, route, or outputs after acceptance.
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -26,6 +27,7 @@ from app.services.task_envelope_v2 import normalize_task_envelope  # noqa: E402
 from app.workers.queue_worker import (  # noqa: E402
     resolve_creative_inputs,
     _looks_like_creative_task,
+    validate_creative_production_plan,
     validate_creative_self_evaluation,
 )
 
@@ -144,12 +146,17 @@ def test_explicit_campaign_system_profile_is_preserved() -> None:
         "inputs": {
             "render_profile": "tbtx_campaign_system_v1",
             "render_profile_locked": True,
-            "source_files": ["a.mp4", "b.mp4"],
+            "source_files": ["a.mp4", "b.mp4", "material-a.png", "material-b.png"],
         },
     }
     out = normalize_creative_envelope_inputs(envelope)
     assert out["inputs"]["render_profile"] == "tbtx_campaign_system_v1"
-    assert out["inputs"]["source_files"] == ["a.mp4", "b.mp4"]
+    assert out["inputs"]["source_files"] == [
+        "a.mp4",
+        "b.mp4",
+        "material-a.png",
+        "material-b.png",
+    ]
 
 
 def test_image_contract_auto_selects_4k_profile() -> None:
@@ -278,6 +285,65 @@ def test_creative_self_evaluation_requires_all_passes(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     assert validate_creative_self_evaluation(tmp_path, "campaign") == evaluation
+
+
+def test_creative_production_plan_requires_binding_agent_decisions(tmp_path: Path) -> None:
+    copy_fields = {
+        "homepage_headline": "The system is green. The work is stuck.",
+        "homepage_lede": "Every tool says go while your attention keeps rebuilding the route.",
+        "evidence_line": "The output exists. The ownership doesn't.",
+        "friction_headline": "Fog is the feeling. Friction is the cost.",
+        "friction_body": "Find the break between information and action before adding another tool.",
+        "diagnostic_question": "Where does forward motion break first?",
+        "personal_social_title": "YOUR TABS AREN'T THE PROBLEM.",
+        "personal_social_copy": "The missing route keeps taxing your attention.",
+        "business_social_title": "EVERY HANDOFF COLLECTS INTEREST.",
+        "business_social_copy": "When context stops, the work gets paid for twice.",
+        "doctrine_social_title": "AUTOMATION CAN'T CARRY MISSING CONTEXT.",
+        "doctrine_social_copy": "Repair the operating layer first.",
+        "motion_scene_one_title": "THE SYSTEM IS GREEN.",
+        "motion_scene_one_copy": "Every tool reports activity.",
+        "motion_scene_two_title": "THE WORK IS STUCK.",
+        "motion_scene_two_copy": "The handoff keeps losing the route.",
+        "motion_scene_three_title": "FIND THE BREAK.",
+        "motion_scene_three_copy": "Diagnose the friction before adding software.",
+    }
+    plan = tmp_path / "creative-production-plan.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "schema": "faas.creative_production_plan",
+                "version": "1.0",
+                "primary_mode": "campaign",
+                "canon_files_read": [
+                    "TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
+                    "CREATIVE_EXECUTION_STANDARD.md",
+                    "ANTI_SLOP_PROTOCOL.md",
+                ],
+                "concept": "The system is green. The work is stuck.",
+                "campaign_thesis": (
+                    "Software reports activity while people absorb the cost of missing "
+                    "context, ownership, and routing."
+                ),
+                "audience_tension": "Visible activity collides with lived immobility.",
+                "visual_system": {
+                    "material_direction": "Optical glass, machined steel, resin, and controlled copper details.",
+                    "composition_logic": "Deep asymmetric frames use physical obstruction and one resolved route.",
+                    "light_behavior": "Warm light moves through the route and stops at the broken handoff.",
+                    "source_footage_role": "Footage appears only as subordinate lived-condition evidence.",
+                    "template_rejection": "No logo header, floating dashboard, neon gradient, or SaaS feature grid.",
+                },
+                "copy": copy_fields,
+                "production_actions": [
+                    "Build the interrupted route as the hero object.",
+                    "Keep footage subordinate to the physical system.",
+                    "Use motion to reveal the handoff failure.",
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert validate_creative_production_plan(tmp_path, "campaign") == plan
 
 
 def test_explicit_owner_override_is_recorded_without_weakening_risk_gate() -> None:

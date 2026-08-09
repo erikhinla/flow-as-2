@@ -71,7 +71,13 @@ def _hermes_capabilities(task_type: str) -> tuple[tuple[str, ...], tuple[str, ..
                 "memory",
                 "session_search",
             ),
-            ("humanizer", "design-md", "popular-web-designs", "claude-design"),
+            (
+                "faas-brand-campaign-producer",
+                "humanizer",
+                "design-md",
+                "popular-web-designs",
+                "claude-design",
+            ),
         )
     if task_type == "implementation":
         return (

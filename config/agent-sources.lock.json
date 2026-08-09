@@ -21,10 +21,9 @@
       "queue_key": "flow:beta:jobs"
     },
     "agent_zero": {
-      "repository": "https://github.com/erikhinla/agent-zero",
-      "upstream_repository": "https://github.com/agent0ai/agent-zero",
+      "repository": "https://github.com/agent0ai/agent-zero",
       "version": "v2.8",
-      "commit": "bc19fe13",
+      "commit": "5ff106a2d489d17c2a3b378521a8f29fb29cf77d",
       "image": "agent0ai/agent-zero@sha256:8c5eff81a46fc956bc247e01a345beadc09acbeecf31873324b843dacf937c4c",
       "entrypoint": "POST /api/message",
       "queue_owner": "gamma",

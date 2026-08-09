@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import html
 import json
 import os
 import re
@@ -26,6 +27,108 @@ from urllib.parse import urlencode
 PROFILE = "tbtx_campaign_system_v1"
 CONCEPT = "Everything works. Nothing moves."
 DIALS = {"design_variance": 9, "visual_density": 5, "motion_intensity": 8}
+
+
+def load_production_plan(path: Path) -> dict[str, Any]:
+    plan = json.loads(path.read_text(encoding="utf-8"))
+    if plan.get("schema") != "faas.creative_production_plan":
+        raise RuntimeError("Production plan has the wrong schema")
+    if plan.get("primary_mode") != "campaign":
+        raise RuntimeError("Production plan must use Campaign Mode")
+    copy = plan.get("copy")
+    if not isinstance(copy, dict):
+        raise RuntimeError("Production plan is missing copy decisions")
+    return plan
+
+
+def _html_line(value: object) -> str:
+    return html.escape(str(value or "").strip(), quote=True)
+
+
+def _js_line(value: object) -> str:
+    return json.dumps(str(value or "").strip(), ensure_ascii=False)
+
+
+def apply_production_plan(plan: dict[str, Any]) -> dict[str, str]:
+    """Apply the producing agent's decisions to every campaign surface."""
+    copy = plan["copy"]
+    headline = _html_line(copy["homepage_headline"]).replace("\n", "<br>")
+    home = HOME.replace("Everything works.<br>Nothing moves.", headline)
+    home = home.replace(
+        "Your tools report activity. Your day keeps paying for the missing operating layer.",
+        _html_line(copy["homepage_lede"]),
+    )
+    home = home.replace(
+        "The dashboard sees output. It can't see the handoff.",
+        _html_line(copy["evidence_line"]),
+    )
+    home = home.replace(
+        "Fog is how it feels. Friction is what it costs.",
+        _html_line(copy["friction_headline"]),
+        1,
+    )
+    home = home.replace(
+        "The gap between information, ownership, and action is where momentum disappears. Diagnose the gap before adding another tool.",
+        _html_line(copy["friction_body"]),
+    )
+
+    diagnostic = DIAGNOSTIC.replace(
+        "Where does momentum disappear first?",
+        _html_line(copy["diagnostic_question"]),
+    )
+
+    social = SOCIAL.replace(
+        "YOUR TABS AREN'T THE PROBLEM.",
+        _html_line(copy["personal_social_title"]),
+    ).replace(
+        "The missing path between information and action keeps stealing your momentum.",
+        _html_line(copy["personal_social_copy"]),
+    )
+    social = social.replace(
+        "title.textContent = 'EVERY HANDOFF IS A TAX.'",
+        f"title.textContent = {_js_line(copy['business_social_title'])}",
+    ).replace(
+        'copy.textContent = "When context doesn\'t travel, the work pays twice."',
+        f"copy.textContent = {_js_line(copy['business_social_copy'])}",
+    )
+    social = social.replace(
+        'title.textContent = "YOU CAN\'T AUTOMATE A MESS."',
+        f"title.textContent = {_js_line(copy['doctrine_social_title'])}",
+    ).replace(
+        "copy.textContent = 'Diagnose the operating layer first.'",
+        f"copy.textContent = {_js_line(copy['doctrine_social_copy'])}",
+    )
+
+    motion = MOTION.replace(
+        "EVERYTHING WORKS.",
+        _html_line(copy["motion_scene_one_title"]),
+        1,
+    ).replace(
+        "The tools agree.",
+        _html_line(copy["motion_scene_one_copy"]),
+        1,
+    )
+    motion = motion.replace(
+        "title.textContent = 'NOTHING MOVES.'",
+        f"title.textContent = {_js_line(copy['motion_scene_two_title'])}",
+    ).replace(
+        "copy.textContent = 'The handoff keeps rebuilding the truth.'",
+        f"copy.textContent = {_js_line(copy['motion_scene_two_copy'])}",
+    )
+    motion = motion.replace(
+        "title.textContent = 'FIND THE FRICTION.'",
+        f"title.textContent = {_js_line(copy['motion_scene_three_title'])}",
+    ).replace(
+        "copy.textContent = 'Fog is how it feels. Friction is what it costs.'",
+        f"copy.textContent = {_js_line(copy['motion_scene_three_copy'])}",
+    )
+    return {
+        "index.html": home,
+        "diagnostic.html": diagnostic,
+        "result.html": RESULT,
+        "social.html": social,
+        "motion.html": motion,
+    }
 
 
 def sha256(path: Path) -> str:
@@ -269,6 +372,9 @@ h1 { max-width: 760px; margin-bottom: 24px; font: 800 clamp(52px, 6.1vw, 100px)/
 .friction-copy { padding: clamp(70px, 9vw, 140px) clamp(24px, 8vw, 130px); }
 .friction-copy h2 { max-width: 820px; font: 800 clamp(44px, 6vw, 94px)/.92 var(--font-display); letter-spacing: -.045em; text-transform: uppercase; }
 .friction-copy p { max-width: 610px; color: var(--muted); font-size: 19px; line-height: 1.5; }
+.source-evidence { position: relative; width: min(520px,100%); height: 104px; margin: 42px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 1px; overflow: hidden; border: 1px solid var(--line); background: var(--line); }
+.source-evidence img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.38) contrast(1.18) brightness(.46); }
+.source-evidence figcaption { position: absolute; inset: auto 12px 10px auto; padding: 6px 8px; color: var(--signal); background: rgba(11,14,16,.72); font: 700 9px/1 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
 .fault-map { border-left: 1px solid var(--line); display: grid; grid-template-rows: repeat(4,1fr); }
 .fault { display: grid; grid-template-columns: 58px 1fr; align-items: center; gap: 20px; padding: 24px 34px; border-bottom: 1px solid var(--hairline); }
 .fault:last-child { border-bottom: 0; }
@@ -479,7 +585,7 @@ HOME = page_document(
     </div>
     <div class="hero-media">
       <figure class="bezel">
-        <img src="assets/field-a.jpg" alt="A real work environment where activity is visible but the operating handoff is not">
+        <img src="assets/field-a.jpg" alt="A physically constructed routing instrument with a luminous signal interrupted at the handoff">
         <div class="instrument" aria-hidden="true"><span>Signal</span><b>Green</b><span>Context</span><b>Lost</b></div>
         <figcaption class="evidence">
           <strong>The dashboard sees output. It can't see the handoff.</strong>
@@ -492,6 +598,7 @@ HOME = page_document(
     <div class="friction-copy">
       <h2>Fog is how it feels. Friction is what it costs.</h2>
       <p>The gap between information, ownership, and action is where momentum disappears. Diagnose the gap before adding another tool.</p>
+      <figure class="source-evidence"><img src="assets/source-evidence-a.jpg" alt="Personal digital fog source evidence"><img src="assets/source-evidence-b.jpg" alt="Business digital friction source evidence"><figcaption>Activity visible / handoff missing</figcaption></figure>
     </div>
     <div class="fault-map" aria-label="Common friction signals">
       <div class="fault"><b>A</b><span>Find the truth</span></div>
@@ -542,7 +649,7 @@ RESULT = page_document(
     <div class="actions"><a class="button" data-result-cta href="https://transformby10x.ai/foglift-kit.html">Clear the fog</a><a class="button secondary" href="diagnostic.html">Check another signal</a></div>
     <div class="result-proof"><div><b>What happens</b><span data-proof-one>You keep deciding where to look next.</span></div><div><b>What it creates</b><span data-proof-two>Small handoffs keep breaking your focus.</span></div></div>
   </section>
-  <aside class="result-visual"><img src="assets/field-b.jpg" alt="A real work environment with layered information and interrupted attention"><div class="instrument" aria-hidden="true"><span>Route</span><b>Found</b><span>Owner</span><b>Pending</b></div></aside>
+  <aside class="result-visual"><img src="assets/field-b.jpg" alt="A fabricated architectural corridor where layered handoffs resolve into one clear path"><div class="instrument" aria-hidden="true"><span>Route</span><b>Found</b><span>Owner</span><b>Pending</b></div></aside>
 </main>""",
 )
 
@@ -589,14 +696,14 @@ MOTION = page_document(
 )
 
 
-def validate_copy(site: Path) -> dict[str, str]:
+def validate_copy(site: Path, primary_line: str = CONCEPT) -> dict[str, str]:
     visible_sources = [site / "index.html", site / "diagnostic.html", site / "result.html", site / "social.html", site / "motion.html"]
     joined = "\n".join(path.read_text(encoding="utf-8") for path in visible_sources)
     checks = {
         "zero_em_dash": "PASS" if "—" not in joined and "–" not in joined else "FAIL",
         "no_generic_ai_hype": "PASS" if not any(word in joined.lower() for word in ("unlock", "supercharge", "revolutionary", "seamless", "next-gen")) else "FAIL",
         "no_logo_header": "PASS" if "logo" not in HEADER.lower() and "wordmark" not in HEADER.lower() else "FAIL",
-        "one_primary_concept": "PASS" if CONCEPT.lower() in (site / "index.html").read_text(encoding="utf-8").lower() else "FAIL",
+        "one_primary_concept": "PASS" if primary_line.lower() in (site / "index.html").read_text(encoding="utf-8").lower() else "FAIL",
         "reduced_motion": "PASS" if "prefers-reduced-motion: reduce" in (site / "campaign.css").read_text(encoding="utf-8") else "FAIL",
         "viewport_stability": "PASS" if "100dvh" in (site / "campaign.css").read_text(encoding="utf-8") else "FAIL",
     }
@@ -611,6 +718,9 @@ def main() -> None:
     parser.add_argument("--workspace", required=True)
     parser.add_argument("--source-a", required=True)
     parser.add_argument("--source-b", required=True)
+    parser.add_argument("--material-a", required=True)
+    parser.add_argument("--material-b", required=True)
+    parser.add_argument("--production-plan", required=True)
     args = parser.parse_args()
 
     if not shutil.which("ffmpeg") or not shutil.which("ffprobe"):
@@ -619,9 +729,17 @@ def main() -> None:
     workspace = Path(args.workspace).resolve()
     source_a = Path(args.source_a).resolve()
     source_b = Path(args.source_b).resolve()
-    for source in (source_a, source_b):
+    material_a = Path(args.material_a).resolve()
+    material_b = Path(args.material_b).resolve()
+    production_plan_path = Path(args.production_plan).resolve()
+    for source in (source_a, source_b, material_a, material_b):
         if not source.is_file():
             raise RuntimeError(f"Campaign source not found: {source}")
+    if not production_plan_path.is_file():
+        raise RuntimeError(f"Creative production plan not found: {production_plan_path}")
+    production_plan = load_production_plan(production_plan_path)
+    planned_copy = production_plan["copy"]
+    planned_dials = production_plan.get("dials") or DIALS
 
     site = workspace / "campaign"
     assets = site / "assets"
@@ -632,8 +750,8 @@ def main() -> None:
         directory.mkdir(parents=True, exist_ok=True)
 
     source_frames = (
-        (source_a, assets / "field-a.jpg", "crop=1200:675:40:405,scale=1920:1080"),
-        (source_b, assets / "field-b.jpg", "crop=1200:675:360:405,scale=1920:1080"),
+        (source_a, assets / "source-evidence-a.jpg", "crop=1200:675:40:405,scale=960:540"),
+        (source_b, assets / "source-evidence-b.jpg", "crop=1200:675:360:405,scale=960:540"),
     )
     for source, target, framing in source_frames:
         run([
@@ -641,14 +759,21 @@ def main() -> None:
             "-vf", "scale=1920:1080:force_original_aspect_ratio=increase," + framing,
             "-frames:v", "1", "-q:v", "2", str(target),
         ])
+    for material, target in (
+        (material_a, assets / "field-a.jpg"),
+        (material_b, assets / "field-b.jpg"),
+    ):
+        run([
+            "ffmpeg", "-y", "-i", str(material),
+            "-vf", "scale=1920:1080:force_original_aspect_ratio=increase,crop=1920:1080",
+            "-frames:v", "1", "-q:v", "2", str(target),
+        ])
 
     write(site / "campaign.css", CSS)
     write(site / "campaign.js", JS)
-    write(site / "index.html", HOME)
-    write(site / "diagnostic.html", DIAGNOSTIC)
-    write(site / "result.html", RESULT)
-    write(site / "social.html", SOCIAL)
-    write(site / "motion.html", MOTION)
+    planned_pages = apply_production_plan(production_plan)
+    for filename, content in planned_pages.items():
+        write(site / filename, content)
 
     capture_specs = (
         (site / "index.html", captures / "homepage-desktop.png", 1440, 900, None),
@@ -701,7 +826,10 @@ def main() -> None:
         "-map", "[out]", "-frames:v", "1", str(contact),
     ])
 
-    anti_slop_checks = validate_copy(site)
+    anti_slop_checks = validate_copy(
+        site,
+        str(planned_copy["homepage_headline"]),
+    )
     film_facts = probe(film)
     if (film_facts["width"], film_facts["height"]) != (1920, 1080):
         raise RuntimeError("Campaign film must be exactly 1920x1080")
@@ -744,48 +872,39 @@ def main() -> None:
     if len(social_hashes) != 3:
         raise RuntimeError("The three social placements must be visually distinct files")
 
-    write(workspace / "concept-brief.md", """
-# Everything works. Nothing moves.
+    visual_system = production_plan["visual_system"]
+    write(
+        workspace / "concept-brief.md",
+        f"""
+# {production_plan['concept']}
 
 Primary mode: Campaign.
 
-The single idea: software reports activity while people and businesses absorb the cost of missing context, ownership, and routing.
+{production_plan['campaign_thesis']}
 
-The green status signal is evidence inside this campaign. It is not a permanent brand color. The campaign moves from system confidence, to lived contradiction, to diagnosis.
+Audience tension: {production_plan.get('audience_tension', '')}
 
-Design read: a connected web, diagnostic, result, motion, and social campaign for overloaded operators and businesses, using physically weighted imagery and asymmetric industrial composition.
+Material direction: {visual_system['material_direction']}
 
-Dials: Design Variance 9. Visual Density 5. Motion Intensity 8.
-""")
-    write(workspace / "campaign-copy-map.md", """
-# Campaign copy map
+Composition logic: {visual_system['composition_logic']}
 
-## Shared campaign line
+Light behavior: {visual_system['light_behavior']}
 
-Everything works. Nothing moves.
+Source footage role: {visual_system['source_footage_role']}
 
-## Homepage
+Template rejection: {visual_system['template_rejection']}
 
-Your tools report activity. Your day keeps paying for the missing operating layer.
-
-## Personal diagnostic
-
-Digital Fog is the lived condition. The result routes to Fog-Lift when attention is carrying the system.
-
-## Business diagnostic
-
-Digital Friction is the business consequence. The result routes to BizBuilders AI when context and ownership fail at handoffs.
-
-## Motion
-
-Everything works. Nothing moves. Find the friction.
-
-## Social placements
-
-- Personal: Your tabs aren't the problem. The missing path between information and action is.
-- Business: Every handoff is a tax. When context doesn't travel, the work pays twice.
-- Doctrine: You can't automate a mess. Diagnose the operating layer first.
-""")
+Dials: {json.dumps(planned_dials, sort_keys=True)}
+""",
+    )
+    write(
+        workspace / "campaign-copy-map.md",
+        "# Campaign copy map\n\n"
+        + "\n\n".join(
+            f"## {name.replace('_', ' ').title()}\n\n{value}"
+            for name, value in planned_copy.items()
+        ),
+    )
     write(workspace / "conversion-path.md", """
 # Conversion path
 
@@ -803,8 +922,8 @@ No logo is used in the header. The campaign idea carries the opening moment.
             {
                 "status": "passed",
                 "primary_mode": "campaign",
-                "concept": CONCEPT,
-                "dials": DIALS,
+                "concept": production_plan["concept"],
+                "dials": planned_dials,
                 "checks": anti_slop_checks,
                 "system_outputs": {
                     "working_web_moments": 3,
@@ -829,8 +948,14 @@ No logo is used in the header. The campaign idea carries the opening moment.
         "status": "staged_for_review",
         "published": False,
         "primary_mode": "campaign",
-        "concept": CONCEPT,
-        "dials": DIALS,
+        "concept": production_plan["concept"],
+        "dials": planned_dials,
+        "creative_authority": {
+            "mode": "agent_led",
+            "plan_file": production_plan_path.name,
+            "plan_sha256": sha256(production_plan_path),
+            "production_actions": production_plan["production_actions"],
+        },
         "browser": Path(browser).name,
         "film": {"file": str(film.relative_to(workspace)), **film_facts},
         "routes": {
@@ -841,6 +966,8 @@ No logo is used in the header. The campaign idea carries the opening moment.
         "sources": [
             {"name": source_a.name, "sha256": sha256(source_a)},
             {"name": source_b.name, "sha256": sha256(source_b)},
+            {"name": material_a.name, "sha256": sha256(material_a), "role": "physical_material_plate"},
+            {"name": material_b.name, "sha256": sha256(material_b), "role": "physical_material_plate"},
         ],
         "files": [
             {
