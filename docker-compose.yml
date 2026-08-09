@@ -90,7 +90,7 @@ services:
     volumes:
       - hermes_data:/opt/data
       - ./config/hermes/SOUL.md:/opt/data/SOUL.md:ro
-      - ./config/hermes/skills:/opt/data/skills:ro
+      - ./config/hermes/skills/faas-brand-campaign-producer:/opt/data/skills/faas-brand-campaign-producer:ro
       - ./services/agent_runtimes/hermes_runner.py:/flow/hermes_runner.py:ro
       - ./runtime/agent-workspace:/workspace
       - ./canon/TBTX_CANON:/workspace/TBTX_CANON:ro
