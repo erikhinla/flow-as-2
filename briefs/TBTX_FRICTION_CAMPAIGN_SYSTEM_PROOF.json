@@ -1,7 +1,7 @@
 {
   "schema": "faas.task_envelope",
   "version": "2.0",
-  "task_id": "7d7a7f18-4353-4389-9a33-712eccc27e09",
+  "task_id": "8cb6e352-5ed7-4571-ab5c-9d0b738585f9",
   "created_at": "2026-08-09T15:24:00Z",
   "source": "dashboard",
   "title": "Build the connected Digital Fog to Digital Friction campaign proof",
@@ -57,7 +57,7 @@
   "scope": {
     "repository": "/workspace",
     "allowed_paths": [
-      "/workspace/jobs/7d7a7f18-4353-4389-9a33-712eccc27e09"
+      "/workspace/jobs/8cb6e352-5ed7-4571-ab5c-9d0b738585f9"
     ],
     "allowed_actions": [
       "read",
