@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import signal
 import shutil
 import subprocess
@@ -74,6 +75,20 @@ def probe(path: Path) -> dict[str, Any]:
         "duration": round(float((payload.get("format") or {}).get("duration") or 0), 3),
         "has_audio": any(item.get("codec_type") == "audio" for item in streams),
     }
+
+
+def mean_audio_db(path: Path) -> float:
+    completed = subprocess.run(
+        ["ffmpeg", "-v", "info", "-i", str(path), "-af", "volumedetect", "-f", "null", "-"],
+        capture_output=True,
+        text=True,
+        timeout=45,
+        check=False,
+    )
+    match = re.search(r"mean_volume:\s*(-?[0-9.]+)\s*dB", completed.stderr)
+    if not match:
+        raise RuntimeError("Campaign film audio level could not be measured")
+    return float(match.group(1))
 
 
 def find_browser() -> str:
@@ -241,7 +256,10 @@ h1 { max-width: 760px; margin-bottom: 24px; font: 800 clamp(52px, 6.1vw, 100px)/
 .hero-media { min-width: 0; padding: clamp(24px, 3vw, 48px) clamp(20px, 4vw, 64px) clamp(24px, 3vw, 48px) 0; display: flex; align-items: center; }
 .bezel { position: relative; width: 100%; min-height: 72vh; overflow: hidden; border: 1px solid rgba(255,255,255,.28); background: var(--surface); box-shadow: inset 0 0 0 8px rgba(255,255,255,.025), inset 0 0 0 9px var(--line), 0 42px 90px var(--shadow); }
 .bezel video, .bezel img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(.66) contrast(1.1) brightness(.66); }
-.bezel::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(16,18,21,.18), transparent 52%), linear-gradient(0deg, rgba(16,18,21,.72), transparent 46%); }
+.bezel::before { content: ""; position: absolute; inset: 0; z-index: 1; opacity: .38; background: linear-gradient(90deg, transparent 0 11.8%, rgba(159,189,145,.5) 11.9% 12%, transparent 12.1% 72%, rgba(159,189,145,.34) 72.1% 72.25%, transparent 72.35%), repeating-linear-gradient(0deg, transparent 0 43px, rgba(238,240,236,.1) 44px, transparent 45px); clip-path: polygon(0 0,100% 0,100% 76%,72% 76%,72% 100%,0 100%); }
+.bezel::after { content: ""; position: absolute; inset: 0; z-index: 1; background: linear-gradient(90deg, rgba(16,18,21,.18), transparent 52%), linear-gradient(0deg, rgba(16,18,21,.72), transparent 46%); }
+.instrument { position: absolute; z-index: 3; top: 26px; right: 26px; display: grid; grid-template-columns: auto auto; gap: 5px 18px; padding: 12px 14px; border: 1px solid rgba(238,240,236,.38); color: #dce4da; background: rgba(11,14,16,.42); backdrop-filter: blur(8px); font: 700 10px/1.2 var(--font-mono); letter-spacing: .08em; text-transform: uppercase; }
+.instrument b { color: var(--signal); font-weight: 700; }
 .evidence { position: absolute; left: clamp(22px, 3vw, 48px); right: clamp(22px, 3vw, 48px); bottom: clamp(22px, 3vw, 46px); z-index: 2; display: grid; grid-template-columns: 1fr auto; gap: 24px; align-items: end; }
 .evidence strong { display: block; max-width: 560px; font: 800 clamp(26px, 3.2vw, 52px)/.94 var(--font-display); letter-spacing: -.035em; text-transform: uppercase; }
 .evidence dl { margin: 0; font: 700 11px/1.7 var(--font-mono); }
@@ -291,9 +309,11 @@ h1 { max-width: 760px; margin-bottom: 24px; font: 800 clamp(52px, 6.1vw, 100px)/
 .result-proof span { line-height: 1.35; }
 .result-visual { position: relative; overflow: hidden; min-height: 650px; }
 .result-visual img { width: 100%; height: 100%; object-fit: cover; filter: saturate(.56) contrast(1.12) brightness(.6); }
-.result-visual::after { content: ""; position: absolute; inset: 0; box-shadow: inset 28px 0 80px var(--canvas); }
+.result-visual::before { content: ""; position: absolute; inset: 0; z-index: 1; background: repeating-linear-gradient(90deg, transparent 0 79px, rgba(159,189,145,.12) 80px, transparent 81px), repeating-linear-gradient(0deg, transparent 0 79px, rgba(238,240,236,.08) 80px, transparent 81px); }
+.result-visual::after { content: ""; position: absolute; inset: 0; z-index: 1; box-shadow: inset 28px 0 80px var(--canvas); }
 .social { min-height: 100dvh; position: relative; overflow: hidden; display: grid; background: var(--canvas); }
 .social-media { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(.58) contrast(1.15) brightness(.5); }
+.social::before { content: ""; position: absolute; inset: 3.8%; z-index: 1; border: 1px solid rgba(238,240,236,.2); background: linear-gradient(90deg, transparent 0 18%, rgba(159,189,145,.35) 18.1% 18.25%, transparent 18.35%), repeating-linear-gradient(0deg, transparent 0 89px, rgba(238,240,236,.075) 90px, transparent 91px); clip-path: polygon(0 0,84% 0,84% 8%,100% 8%,100% 100%,0 100%); }
 .social::after { content: ""; position: absolute; inset: 0; background: linear-gradient(0deg, rgba(16,18,21,.96), rgba(16,18,21,.05) 66%), linear-gradient(90deg, rgba(16,18,21,.72), transparent); }
 .social-copy { z-index: 2; align-self: end; padding: clamp(42px, 8vw, 108px); }
 .social-copy h1 { max-width: 900px; font-size: clamp(58px, 10vw, 138px); }
@@ -305,6 +325,7 @@ h1 { max-width: 760px; margin-bottom: 24px; font: 800 clamp(52px, 6.1vw, 100px)/
 .social.story .social-copy h1 { font-size: clamp(82px, 15vw, 180px); }
 .motion { min-height: 100dvh; position: relative; overflow: hidden; display: flex; align-items: center; background: var(--canvas); }
 .motion img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(.52) contrast(1.2) brightness(.45); }
+.motion::before { content: ""; position: absolute; inset: 5vh 3vw; z-index: 1; border: 1px solid rgba(238,240,236,.22); background: linear-gradient(90deg, transparent 0 21%, rgba(159,189,145,.42) 21.1% 21.2%, transparent 21.3% 68%, rgba(238,240,236,.16) 68.1% 68.2%, transparent 68.3%), repeating-linear-gradient(0deg, transparent 0 119px, rgba(238,240,236,.07) 120px, transparent 121px); clip-path: polygon(0 0,78% 0,78% 7%,100% 7%,100% 100%,0 100%); }
 .motion::after { content: ""; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(16,18,21,.96), rgba(16,18,21,.1) 74%); }
 .motion-copy { position: relative; z-index: 2; width: 76%; padding-left: 7vw; }
 .motion-copy h1 { font-size: clamp(90px, 10vw, 190px); }
@@ -326,28 +347,37 @@ h1 { max-width: 760px; margin-bottom: 24px; font: 800 clamp(52px, 6.1vw, 100px)/
   .rail nav { gap: 15px; }
   .rail nav a { font-size: 11px; }
   .hero, .page-shell, .result-stage { min-height: calc(100dvh - 58px); grid-template-columns: 1fr; }
-  .hero-copy { min-height: 52dvh; padding: 48px 20px 32px; }
-  .status { margin-bottom: 20px; }
+  .hero-copy { min-height: 0; padding: 40px 20px 28px; }
+  .status { margin-bottom: 16px; }
   h1 { max-width: 100%; font-size: clamp(44px, 13.2vw, 54px); }
-  .hero-media { padding: 0 20px 28px; }
-  .bezel { min-height: 43dvh; }
+  .hero-copy h1 { margin-bottom: 18px; }
+  .hero-copy .lede { margin-bottom: 24px; }
+  .hero-media { padding: 0 20px 20px; }
+  .bezel { min-height: 320px; }
   .evidence { grid-template-columns: 1fr; }
+  .evidence strong { font-size: 24px; }
   .evidence dl { display: none; }
+  .instrument { top: 14px; right: 14px; padding: 9px 10px; font-size: 8px; }
   .friction-band { grid-template-columns: 1fr; }
   .friction-copy { padding: 74px 20px; }
   .fault-map { border-left: 0; border-top: 1px solid var(--line); }
   .fault { padding: 20px; }
-  .page-context { padding: 34px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
-  .page-context h1 { font-size: 48px; }
+  .page-context { padding: 24px 20px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .page-context h1 { margin-bottom: 16px; font-size: 40px; }
   .page-context > div:first-child p { display: none; }
-  .diagnostic-panel { padding: 40px 20px 56px; }
-  .question { font-size: 40px; }
-  .answers { grid-template-columns: 1fr; }
-  .answer { min-height: 86px; }
-  .result-copy { padding: 50px 20px; }
-  .result-copy h1 { font-size: 52px; }
+  .route-switch button { min-height: 42px; }
+  .diagnostic-panel { padding: 28px 20px 32px; }
+  .progress { margin-bottom: 22px; }
+  .question { font-size: 32px; }
+  .answers { grid-template-columns: repeat(2,minmax(0,1fr)); margin: 24px 0 18px; }
+  .answer { min-height: 96px; padding: 15px; }
+  .answer strong { font-size: 14px; }
+  .answer span { font-size: 12px; }
+  .result-copy { min-height: calc(100dvh - 58px); padding: 42px 20px; background: linear-gradient(90deg, rgba(16,18,21,.94), rgba(16,18,21,.76)), url("assets/field-b.jpg") center/cover; }
+  .result-copy h1 { font-size: 48px; }
   .result-proof { grid-template-columns: 1fr; }
-  .result-visual { min-height: 46dvh; grid-row: 1; }
+  .result-proof div { padding: 16px; }
+  .result-visual { display: none; }
   .social-copy { padding: 44px; }
   .social-copy h1 { font-size: 86px; }
   .social.business .social-copy { padding-right: 8vw; }
@@ -450,6 +480,7 @@ HOME = page_document(
     <div class="hero-media">
       <figure class="bezel">
         <img src="assets/field-a.jpg" alt="A real work environment where activity is visible but the operating handoff is not">
+        <div class="instrument" aria-hidden="true"><span>Signal</span><b>Green</b><span>Context</span><b>Lost</b></div>
         <figcaption class="evidence">
           <strong>The dashboard sees output. It can't see the handoff.</strong>
           <dl><dt>REPORTED</dt><dd>ACTIVE</dd><dt>EXPERIENCED</dt><dd>STUCK</dd></dl>
@@ -511,7 +542,7 @@ RESULT = page_document(
     <div class="actions"><a class="button" data-result-cta href="https://transformby10x.ai/foglift-kit.html">Clear the fog</a><a class="button secondary" href="diagnostic.html">Check another signal</a></div>
     <div class="result-proof"><div><b>What happens</b><span data-proof-one>You keep deciding where to look next.</span></div><div><b>What it creates</b><span data-proof-two>Small handoffs keep breaking your focus.</span></div></div>
   </section>
-  <aside class="result-visual"><img src="assets/field-b.jpg" alt="A real work environment with layered information and interrupted attention"></aside>
+  <aside class="result-visual"><img src="assets/field-b.jpg" alt="A real work environment with layered information and interrupted attention"><div class="instrument" aria-hidden="true"><span>Route</span><b>Found</b><span>Owner</span><b>Pending</b></div></aside>
 </main>""",
 )
 
@@ -521,7 +552,7 @@ SOCIAL = page_document(
     """<main class="social" data-social-root>
   <img class="social-media" data-social-image src="assets/field-a.jpg" alt="A real work environment under digital pressure">
   <div class="social-mark"><span class="lamp" aria-hidden="true"></span><span data-social-mark>Digital Fog</span></div>
-  <div class="social-copy"><h1 data-social-title>YOUR TABS AREN'T THE PROBLEM.</h1><p data-social-copy>The missing path between information and action is.</p></div>
+  <div class="social-copy"><h1 data-social-title>YOUR TABS AREN'T THE PROBLEM.</h1><p data-social-copy>The missing path between information and action keeps stealing your momentum.</p></div>
 </main>
 <script>
   const placement = new URLSearchParams(location.search).get('placement') || 'personal';
@@ -600,12 +631,14 @@ def main() -> None:
     for directory in (assets, captures, social, motion):
         directory.mkdir(parents=True, exist_ok=True)
 
-    for source, target in ((source_a, assets / "field-a.jpg"), (source_b, assets / "field-b.jpg")):
+    source_frames = (
+        (source_a, assets / "field-a.jpg", "crop=1200:675:40:405,scale=1920:1080"),
+        (source_b, assets / "field-b.jpg", "crop=1200:675:360:405,scale=1920:1080"),
+    )
+    for source, target, framing in source_frames:
         run([
             "ffmpeg", "-y", "-ss", "1.2", "-i", str(source),
-            "-vf",
-            "scale=1920:1080:force_original_aspect_ratio=increase,"
-            "crop=1280:720:320:180,scale=1920:1080",
+            "-vf", "scale=1920:1080:force_original_aspect_ratio=increase," + framing,
             "-frames:v", "1", "-q:v", "2", str(target),
         ])
 
@@ -647,13 +680,13 @@ def main() -> None:
         "[1:v]zoompan=z='min(zoom+0.00016,1.024)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=150:s=1920x1080:fps=30[v1];"
         "[2:v]zoompan=z='min(zoom+0.0002,1.03)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=150:s=1920x1080:fps=30[v2];"
         "[v0][v1][v2]concat=n=3:v=1:a=0,format=yuv420p[v];"
-        "[3:a]volume=0.028,afade=t=in:st=0:d=0.5,afade=t=out:st=14:d=1[a]"
+        "[3:a]volume=0.16,lowpass=f=180,tremolo=f=0.25:d=0.55,afade=t=in:st=0:d=0.5,afade=t=out:st=14:d=1[a]"
     )
     run([
         "ffmpeg", "-y",
-        "-loop", "1", "-framerate", "30", "-i", str(scene_paths[0]),
-        "-loop", "1", "-framerate", "30", "-i", str(scene_paths[1]),
-        "-loop", "1", "-framerate", "30", "-i", str(scene_paths[2]),
+        "-framerate", "30", "-i", str(scene_paths[0]),
+        "-framerate", "30", "-i", str(scene_paths[1]),
+        "-framerate", "30", "-i", str(scene_paths[2]),
         "-f", "lavfi", "-i", "sine=frequency=52:sample_rate=48000:duration=15",
         "-filter_complex", filter_graph,
         "-map", "[v]", "-map", "[a]", "-t", "15",
@@ -676,6 +709,20 @@ def main() -> None:
         raise RuntimeError("Campaign film must be exactly 15 seconds")
     if not film_facts["has_audio"]:
         raise RuntimeError("Campaign film must contain intentional audio")
+    film_facts["mean_audio_db"] = mean_audio_db(film)
+    if float(film_facts["mean_audio_db"]) < -32.0:
+        raise RuntimeError("Campaign film audio is technically present but functionally inaudible")
+    with tempfile.TemporaryDirectory(prefix="faas-film-check-") as check_dir:
+        check_frames: list[Path] = []
+        for index, timestamp in enumerate((2, 7, 12), start=1):
+            frame = Path(check_dir) / f"story-{index}.jpg"
+            run([
+                "ffmpeg", "-y", "-ss", str(timestamp), "-i", str(film),
+                "-frames:v", "1", "-q:v", "3", str(frame),
+            ])
+            check_frames.append(frame)
+        if len({sha256(frame) for frame in check_frames}) != 3:
+            raise RuntimeError("Campaign film does not progress through three distinct story states")
 
     expected_dimensions = {
         "captures/homepage-desktop.png": (1440, 900),
