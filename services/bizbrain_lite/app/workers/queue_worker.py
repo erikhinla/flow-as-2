@@ -47,6 +47,18 @@ logging.basicConfig(
 )
 logger = logging.getLogger("flow.queue_worker")
 
+CREATIVE_CANON_FILES = (
+    "TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
+    "CREATIVE_EXECUTION_STANDARD.md",
+)
+CREATIVE_EVALUATION_CATEGORIES = (
+    "Concept",
+    "Craft",
+    "Story",
+    "Emotion / Curiosity",
+    "Brand",
+)
+
 # ── System prompts per agent ──────────────────────────────────────────────────
 
 NATURAL_VOICE_HARD_FAIL = (
@@ -121,6 +133,51 @@ def load_tbtx_canon_context() -> str:
     return "\n\n".join(sections)
 
 
+def load_creative_canon_context() -> str:
+    """Load both mandatory creative authorities or fail the producing job."""
+    root = Path(os.getenv("TBTX_CANON_ROOT", "/app/canon/TBTX_CANON"))
+    sections: list[str] = []
+    for filename in CREATIVE_CANON_FILES:
+        path = root / filename
+        if not path.is_file() or not os.access(path, os.R_OK):
+            raise RuntimeError(f"Required creative canon is unavailable or unreadable: {path}")
+        text = path.read_text(encoding="utf-8").strip()
+        if not text:
+            raise RuntimeError(f"Required creative canon is empty: {path}")
+        sections.append(f"## {filename}\n{text}")
+    return "\n\n".join(sections)
+
+
+def creative_contract(inputs: dict) -> dict:
+    contract = inputs.get("envelope_contract") or {}
+    if not isinstance(contract, dict):
+        return {}
+    return contract if contract.get("work_class") == "creative_export" else {}
+
+
+def validate_creative_self_evaluation(job_workspace: Path, primary_mode: str) -> Path:
+    """Reject creative output until every mandatory quality category passes."""
+    evaluation_path = job_workspace / "creative-self-evaluation.json"
+    if not evaluation_path.is_file():
+        raise RuntimeError("Creative output is missing creative-self-evaluation.json")
+    try:
+        evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("creative-self-evaluation.json is not valid JSON") from exc
+    if evaluation.get("primary_mode") != primary_mode:
+        raise RuntimeError("Creative self-evaluation primary_mode does not match the accepted contract")
+    canon_files = set(evaluation.get("canon_files_read") or [])
+    if not set(CREATIVE_CANON_FILES).issubset(canon_files):
+        raise RuntimeError("Creative self-evaluation does not prove both canon files were read")
+    scores = evaluation.get("categories")
+    if not isinstance(scores, dict):
+        raise RuntimeError("Creative self-evaluation is missing category results")
+    failed = [category for category in CREATIVE_EVALUATION_CATEGORIES if scores.get(category) != "PASS"]
+    if failed:
+        raise RuntimeError("Creative self-evaluation did not pass: " + ", ".join(failed))
+    return evaluation_path
+
+
 # ── Agent runtime execution ───────────────────────────────────────────────────
 
 async def build_execution_prompt(
@@ -175,6 +232,23 @@ async def build_execution_prompt(
             "claims, or terminology. Lead with the customer's lived experience, not "
             "technology or internal process.\n\n"
             f"{canon_context}\n\n"
+        )
+
+    creative = creative_contract(inputs)
+    if creative:
+        creative_context = load_creative_canon_context()
+        mode = str(creative.get("creative_mode") or "campaign")
+        user_message += (
+            "## Mandatory creative execution gate\n"
+            "Read both authorities below before producing anything. The Brand Bible governs "
+            "identity; the Creative Execution Standard governs quality judgment.\n\n"
+            f"Primary creative mode: `{mode}`.\n"
+            "Before requesting human review, create `creative-self-evaluation.json` in the job "
+            "workspace. It must contain `primary_mode`, `canon_files_read`, and PASS results for "
+            "each of: Concept, Craft, Story, Emotion / Curiosity, Brand. If any category cannot "
+            "pass, revise or escalate; never present the output as ready. `publish_allowed` is "
+            "false unless the human gate explicitly overrides it.\n\n"
+            f"{creative_context}\n\n"
         )
 
     user_message += (
@@ -1143,31 +1217,34 @@ async def activate_job(
         )
 
 
-async def complete_job(job_id: str, result_pointer: str) -> None:
-    """Mark job COMPLETED and record artifact path."""
+async def complete_job(job_id: str, result_pointer: str, *, review_required: bool = False) -> None:
+    """Persist output; creative work remains held for the human Creative Gate."""
     async with async_session() as session:
         result = await session.execute(select(JobRecord).where(JobRecord.job_id == job_id))
         job = result.scalar_one_or_none()
         if not job:
             return
         now = datetime.utcnow()
-        job.status = JobStatus.COMPLETED.value
+        job.status = JobStatus.REVIEW_REQUIRED.value if review_required else JobStatus.COMPLETED.value
         job.updated_at = now
         job.completed_at = now
         job.result_pointer = result_pointer
         job.error_message = None
 
-        # Record job completion in audit log
         await record_audit_event(
             session,
-            event_type=AuditEventType.JOB_COMPLETED,
-            title=f"Execution completed: {job.title or job_id}",
+            event_type=(AuditEventType.REVIEW_REQUESTED if review_required else AuditEventType.JOB_COMPLETED),
+            title=(f"Human Creative Gate required: {job.title or job_id}" if review_required else f"Execution completed: {job.title or job_id}"),
             job_id=job_id,
             task_id=job.task_id,
             agent=job.owner,
             action_by=job.owner,
-            description=f"Job completed successfully, artifact written to {result_pointer}",
-            event_data={"artifact_path": result_pointer},
+            description=(
+                f"Creative execution and self-evaluation passed; human review is required before publishing. Artifact: {result_pointer}"
+                if review_required else f"Job completed successfully, artifact written to {result_pointer}"
+            ),
+            event_data={"artifact_path": result_pointer, "publish_allowed": False},
+            requires_human_approval="Y" if review_required else "N",
         )
 
         # Trigger automated learning cycle
@@ -1182,7 +1259,7 @@ async def complete_job(job_id: str, result_pointer: str) -> None:
             logger.warning("Automated learning failed for job_id=%s: %s", job_id, e)
 
         await session.commit()
-        logger.info("Completed job_id=%s artifact=%s", job_id, result_pointer)
+        logger.info("Finished job_id=%s status=%s artifact=%s", job_id, job.status, result_pointer)
 
 
 async def fail_job(job_id: str, error: str) -> None:
@@ -1328,14 +1405,47 @@ async def worker_loop(owner: str, timeout: int) -> None:
                         "profile and staged the following manifest:\n\n"
                         + json.dumps(render_manifest, indent=2)
                     )
+                active_creative_contract = creative_contract(creative_inputs)
+                workflow_evidence: list[dict] = []
+                if active_creative_contract:
+                    evaluation_prompt = (
+                        "You are the producing creative agent completing the mandatory self-evaluation. "
+                        "Do not change the staged asset. Read both files at /app/canon/TBTX_CANON/ and "
+                        f"inspect the rendered work in {job_workspace}. Write exactly one JSON file at "
+                        f"{job_workspace / 'creative-self-evaluation.json'} with primary_mode="
+                        f"{active_creative_contract.get('creative_mode')!r}, canon_files_read containing "
+                        "TransformBy10X_Ecosystem_Brand_Bible_v1.0.md and CREATIVE_EXECUTION_STANDARD.md, "
+                        "and categories containing PASS or FAIL for Concept, Craft, Story, Emotion / Curiosity, "
+                        "and Brand. A FAIL means the asset must be revised or escalated, never marked ready."
+                    )
+                    evaluation_runtime = await call_agent_runtime(
+                        evaluation_prompt,
+                        f"{job_id}-creative-self-evaluation",
+                        model_decision=model_decision,
+                    )
+                    evaluation_path = validate_creative_self_evaluation(
+                        job_workspace,
+                        str(active_creative_contract.get("creative_mode") or "campaign"),
+                    )
+                    workflow_evidence.append(
+                        {
+                            "stage": "creative_self_evaluation",
+                            "status": "passed",
+                            "path": str(evaluation_path),
+                            "primary_mode": active_creative_contract.get("creative_mode"),
+                            "categories": list(CREATIVE_EVALUATION_CATEGORIES),
+                            "canon_files": list(CREATIVE_CANON_FILES),
+                            "worker": evaluation_runtime.get("engine"),
+                            "execution_mode": evaluation_runtime.get("execution_mode"),
+                        }
+                    )
                 produced_files = validate_artifact_contract(
                     effective_output_required,
                     job_workspace,
                     pre_review=requires_media_artifacts(effective_output_required),
                 )
-                workflow_evidence: list[dict] = []
                 if requires_media_artifacts(effective_output_required):
-                    workflow_evidence = await run_creative_review_pipeline(
+                    workflow_evidence += await run_creative_review_pipeline(
                         job_id=job_id,
                         title=effective_title,
                         goal=effective_goal,
@@ -1369,7 +1479,11 @@ async def worker_loop(owner: str, timeout: int) -> None:
             )
 
             # Step 4: Mark completed
-            await complete_job(job_id, artifact_path)
+            await complete_job(
+                job_id,
+                artifact_path,
+                review_required=bool(creative_contract(creative_inputs)),
+            )
 
             # Step 5: Notify Discord
             await notify_discord(

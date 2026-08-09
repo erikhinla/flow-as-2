@@ -26,6 +26,7 @@ from app.services.task_envelope_v2 import normalize_task_envelope  # noqa: E402
 from app.workers.queue_worker import (  # noqa: E402
     resolve_creative_inputs,
     _looks_like_creative_task,
+    validate_creative_self_evaluation,
 )
 
 
@@ -212,6 +213,52 @@ def test_normalizer_rejects_invalid_task_type() -> None:
                 "work_class": "invented_work",
             }
         )
+
+
+def test_creative_export_enforces_both_canons_campaign_mode_and_human_gate() -> None:
+    envelope = normalize_task_envelope(
+        {
+            "title": "Creative quality proof",
+            "instruction": "Produce one campaign image for staged human review.",
+            "work_class": "creative_export",
+            "impact_if_wrong": "public",
+            "creative": {"campaign": "Creative Execution Standard"},
+        }
+    )
+    v2 = envelope["inputs"]["envelope_v2"]
+    assert v2["creative"]["primary_mode"] == "campaign"
+    assert v2["gates"]["review_required"] is True
+    assert v2["gates"]["publish_allowed"] is False
+    assert v2["scope"]["reference_material"] == [
+        "/app/canon/TBTX_CANON/TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
+        "/app/canon/TBTX_CANON/CREATIVE_EXECUTION_STANDARD.md",
+    ]
+    assert len(v2["acceptance_criteria"]) >= 5
+
+
+def test_creative_mode_conflict_requires_primary_mode() -> None:
+    with pytest.raises(ValueError, match="mixes modes"):
+        normalize_task_envelope(
+            {
+                "title": "Conflicted creative job",
+                "instruction": "Produce one mixed creative export.",
+                "work_class": "creative_export",
+                "creative": {"modes": ["campaign", "brand_system"]},
+            }
+        )
+
+
+def test_creative_self_evaluation_requires_all_passes(tmp_path: Path) -> None:
+    evaluation = tmp_path / "creative-self-evaluation.json"
+    evaluation.write_text(
+        '{"primary_mode":"campaign","canon_files_read":['
+        '"TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",'
+        '"CREATIVE_EXECUTION_STANDARD.md"],"categories":{'
+        '"Concept":"PASS","Craft":"PASS","Story":"PASS",'
+        '"Emotion / Curiosity":"PASS","Brand":"PASS"}}',
+        encoding="utf-8",
+    )
+    assert validate_creative_self_evaluation(tmp_path, "campaign") == evaluation
 
 
 def test_explicit_owner_override_is_recorded_without_weakening_risk_gate() -> None:

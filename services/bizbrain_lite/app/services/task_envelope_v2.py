@@ -79,6 +79,21 @@ WORKER_RULES = [
     "Do not treat provisional working selection as final-design approval.",
 ]
 
+CREATIVE_CANON_REFERENCES = [
+    "/app/canon/TBTX_CANON/TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
+    "/app/canon/TBTX_CANON/CREATIVE_EXECUTION_STANDARD.md",
+]
+
+CREATIVE_EVALUATION_CRITERIA = [
+    "Concept: a clear single idea can be stated in one sentence.",
+    "Craft: professionally produced at the expected commercial quality level.",
+    "Story: communicates more than pure information.",
+    "Emotion / Curiosity: creates tension, curiosity, or a memorable feeling.",
+    "Brand: aligns with the current TransformBy10X Ecosystem Brand Bible.",
+]
+
+VALID_CREATIVE_MODES = {"brand_system", "campaign"}
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -92,6 +107,42 @@ def _as_list(value: Any) -> list:
     if isinstance(value, str) and value.strip():
         return [line.strip() for line in value.splitlines() if line.strip()]
     return []
+
+
+def _creative_contract(
+    work_class: str,
+    creative_in: dict[str, Any],
+    reference_material: list[str],
+    acceptance: list[str],
+) -> tuple[dict[str, Any], list[str], list[str]]:
+    """Normalize the non-optional creative canon and quality-gate contract."""
+    if work_class != "creative_export":
+        return creative_in, reference_material, acceptance
+
+    declared_modes = _as_list(creative_in.get("modes"))
+    primary_mode = str(creative_in.get("primary_mode") or "").strip().lower()
+    if not primary_mode:
+        if len(set(declared_modes)) > 1:
+            raise ValueError(
+                "creative task mixes modes but does not declare creative.primary_mode"
+            )
+        # The Creative Execution Standard requires Campaign criteria for exports
+        # unless an explicit valid primary mode says otherwise.
+        primary_mode = "campaign"
+    if primary_mode not in VALID_CREATIVE_MODES:
+        raise ValueError(
+            "creative.primary_mode must be one of: brand_system, campaign"
+        )
+
+    normalized_creative = dict(creative_in)
+    normalized_creative["primary_mode"] = primary_mode
+    normalized_creative["self_evaluation_required"] = True
+    normalized_creative["self_evaluation_categories"] = [
+        "Concept", "Craft", "Story", "Emotion / Curiosity", "Brand"
+    ]
+    refs = list(dict.fromkeys(CREATIVE_CANON_REFERENCES + reference_material))
+    criteria = list(dict.fromkeys(CREATIVE_EVALUATION_CRITERIA + acceptance))
+    return normalized_creative, refs, criteria
 
 
 def is_v2_payload(raw: dict[str, Any]) -> bool:
@@ -221,6 +272,9 @@ def normalize_task_envelope(raw: dict[str, Any] | None) -> dict[str, Any]:
             "project": input_in.get("project") or "",
             "asset_label": input_in.get("asset") or "",
         }
+    creative_in, reference_material, acceptance = _creative_contract(
+        work_class, creative_in, reference_material, acceptance
+    )
     design_lifecycle = str(
         creative_in.get("design_lifecycle") or "provisional_working"
     ).strip()
@@ -244,6 +298,10 @@ def normalize_task_envelope(raw: dict[str, Any] | None) -> dict[str, Any]:
         else data.get("review_required", risk_tier == "downtime_security_money")
     )
     if risk_tier == "downtime_security_money":
+        review_required = True
+    if work_class == "creative_export":
+        # Agent evaluation is evidence for the human Creative Gate, never a
+        # substitute for it.
         review_required = True
     rollback_required = bool(
         gates.get("rollback_required")
@@ -315,6 +373,9 @@ def normalize_task_envelope(raw: dict[str, Any] | None) -> dict[str, Any]:
             "design_lifecycle": design_lifecycle,
             "final_approval_reference": final_ref,
             "defined_use": str(creative_in.get("defined_use") or ""),
+            "primary_mode": creative_in.get("primary_mode"),
+            "self_evaluation_required": bool(creative_in.get("self_evaluation_required")),
+            "self_evaluation_categories": creative_in.get("self_evaluation_categories") or [],
         },
         "gates": {
             "review_required": review_required,

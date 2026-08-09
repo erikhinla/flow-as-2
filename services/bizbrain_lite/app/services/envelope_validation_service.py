@@ -395,6 +395,13 @@ class EnvelopeValidationService:
             "publish_allowed": bool(inputs.get("publish_allowed", False)),
             "render_profile": (inputs.get("render_profile") or None),
             "execution_mode": (inputs.get("execution_mode") or None),
+            "reference_material": (v2.get("scope") or {}).get("reference_material")
+            or inputs.get("context_refs")
+            or [],
+            "creative_mode": (v2.get("creative") or {}).get("primary_mode"),
+            "self_evaluation_required": bool(
+                (v2.get("creative") or {}).get("self_evaluation_required")
+            ),
             "frozen_at": datetime.utcnow().isoformat() + "Z",
         }
         envelope["inputs"] = inputs

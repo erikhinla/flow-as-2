@@ -92,6 +92,7 @@ services:
       - ./services/agent_runtimes/hermes_runner.py:/flow/hermes_runner.py:ro
       - ./runtime/agent-workspace:/workspace
       - ./canon/TBTX_CANON:/workspace/TBTX_CANON:ro
+      - ./canon/TBTX_CANON:/app/canon/TBTX_CANON:ro
     expose:
       - "18789"
     healthcheck:
@@ -124,6 +125,7 @@ services:
       - ./runtime/agent-workspace:/home/node/.openclaw/workspace
       - ./runtime/agent-workspace:/workspace
       - ./canon/TBTX_CANON:/home/node/.openclaw/workspace/TBTX_CANON:ro
+      - ./canon/TBTX_CANON:/app/canon/TBTX_CANON:ro
       - ./services/agent_runtimes/openclaw_runner.mjs:/flow/openclaw_runner.mjs:ro
     expose:
       - "18790"
@@ -152,6 +154,7 @@ services:
       - ./services/agent_runtimes/agent_zero_presets.yaml:/a0/usr/plugins/_model_config/presets.yaml:rw
       - ./runtime/agent-workspace:/workspace
       - ./canon/TBTX_CANON:/workspace/TBTX_CANON:ro
+      - ./canon/TBTX_CANON:/app/canon/TBTX_CANON:ro
     expose:
       - "80"
     healthcheck:
