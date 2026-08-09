@@ -1,22 +1,15 @@
 {
   "schema": "faas.task_envelope",
   "version": "2.0",
-  "task_id": "a6a3afda-50ee-4ab4-a135-baba049325cd",
-  "created_at": "2026-08-09T06:43:54Z",
+  "task_id": "15c9166b-2829-494c-a0b0-52a6f0582040",
+  "created_at": "2026-08-09T06:45:00Z",
   "source": "dashboard",
   "title": "Create the Status: Green campaign breakthrough proof",
   "instruction": "Read the TransformBy10X Ecosystem Brand Bible and Creative Execution Standard completely. Produce one campaign-level Work-lane hero image around a single idea: the official status is green while the physical evidence says the operation is failing. The image must feel like observed evidence from real work, not a software illustration. Stage it for human review only. Do not publish it and do not turn the visual choices into a permanent identity system.",
-  "success_looks_like": [
-    "One native-resolution 4K image makes the Status: Green contradiction understandable before any explanatory copy is read.",
-    "The result feels sophisticated, precise, industrially weighted, human, and campaign-ready without looking corporate, decorative, cyberpunk, or like a SaaS template.",
-    "The staged package contains responsive derivatives, provenance, mechanical validation, semantic review, and the mandatory creative self-evaluation."
-  ],
   "out_of_scope": [
-    "Publishing or deployment",
-    "A logo lockup or logo-led header",
-    "A permanent palette, typography system, icon system, or identity decision",
-    "Multiple concept rounds",
-    "A generic AI control-room or floating-dashboard composition"
+    "Publishing",
+    "Permanent identity decisions",
+    "Additional concepts"
   ],
   "work_class": "creative_export",
   "impact_if_wrong": "public",
@@ -48,7 +41,7 @@
   "scope": {
     "repository": "/workspace",
     "allowed_paths": [
-      "/workspace/jobs/a6a3afda-50ee-4ab4-a135-baba049325cd"
+      "/workspace/jobs/15c9166b-2829-494c-a0b0-52a6f0582040"
     ],
     "allowed_actions": [
       "read",
@@ -70,9 +63,9 @@
       "/app/canon/TBTX_CANON/CREATIVE_EXECUTION_STANDARD.md"
     ],
     "constraints": [
-      "Use visual choices because they serve this campaign idea, not because they belong to a pre-approved palette.",
-      "The green signal is story evidence, not a permanent brand color decision.",
-      "Keep the person incidental and unposed; the system failure is the subject."
+      "Every visual choice serves the campaign idea.",
+      "Green is story evidence, not a permanent palette.",
+      "The system failure is the subject."
     ]
   },
   "creative": {
