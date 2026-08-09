@@ -531,7 +531,7 @@ SOCIAL = page_document(
   const mark = document.querySelector('[data-social-mark]');
   const image = document.querySelector('[data-social-image]');
   if (placement === 'business') {
-    root.classList.add('business'); title.textContent = 'EVERY HANDOFF IS A TAX.'; copy.textContent = 'When context doesn't travel, the work pays twice.'; mark.textContent = 'Digital Friction'; image.src = 'assets/field-b.jpg';
+    root.classList.add('business'); title.textContent = 'EVERY HANDOFF IS A TAX.'; copy.textContent = "When context doesn't travel, the work pays twice."; mark.textContent = 'Digital Friction'; image.src = 'assets/field-b.jpg';
   }
   if (placement === 'story') {
     root.classList.add('story'); title.textContent = "YOU CAN'T AUTOMATE A MESS."; copy.textContent = 'Diagnose the operating layer first.'; mark.textContent = 'Architecture over tools'; image.src = 'assets/field-a.jpg';
