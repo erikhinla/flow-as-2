@@ -1,5 +1,4 @@
 import { apiFetch } from '../lib/api'
-import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts'
 import { TrendingUp, Clock, CheckCircle } from 'lucide-react'

@@ -1,7 +1,6 @@
 import { apiFetch } from '../lib/api'
-import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Brain, TrendingUp, Target, Zap } from 'lucide-react'
+import { Brain, TrendingUp, Target } from 'lucide-react'
 
 interface Skill {
   skill_id: string

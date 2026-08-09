@@ -7,9 +7,19 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'system-ui', 'sans-serif'],
+        sans: ['Avenir Next', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        'flow-mono': ['SFMono-Regular', 'Cascadia Code', 'Liberation Mono', 'monospace'],
       },
       colors: {
+        flow: {
+          ink: '#17201d',
+          muted: '#68716d',
+          line: '#d7d7d0',
+          surface: '#f4f2eb',
+          accent: '#d79a52',
+          'accent-deep': '#8a5724',
+          night: '#0c1210',
+        },
         blue: {
           50: '#eff6ff',
           100: '#dbeafe',
