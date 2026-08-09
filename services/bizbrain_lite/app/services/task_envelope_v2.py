@@ -82,6 +82,7 @@ WORKER_RULES = [
 CREATIVE_CANON_REFERENCES = [
     "/app/canon/TBTX_CANON/TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
     "/app/canon/TBTX_CANON/CREATIVE_EXECUTION_STANDARD.md",
+    "/app/canon/TBTX_CANON/ANTI_SLOP_PROTOCOL.md",
 ]
 
 CREATIVE_EVALUATION_CRITERIA = [

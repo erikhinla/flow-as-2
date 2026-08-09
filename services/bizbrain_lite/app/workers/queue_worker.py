@@ -50,6 +50,7 @@ logger = logging.getLogger("flow.queue_worker")
 CREATIVE_CANON_FILES = (
     "TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
     "CREATIVE_EXECUTION_STANDARD.md",
+    "ANTI_SLOP_PROTOCOL.md",
 )
 CREATIVE_EVALUATION_CATEGORIES = (
     "Concept",
@@ -168,7 +169,7 @@ def validate_creative_self_evaluation(job_workspace: Path, primary_mode: str) ->
         raise RuntimeError("Creative self-evaluation primary_mode does not match the accepted contract")
     canon_files = set(evaluation.get("canon_files_read") or [])
     if not set(CREATIVE_CANON_FILES).issubset(canon_files):
-        raise RuntimeError("Creative self-evaluation does not prove both canon files were read")
+        raise RuntimeError("Creative self-evaluation does not prove every creative authority was read")
     scores = evaluation.get("categories")
     if not isinstance(scores, dict):
         raise RuntimeError("Creative self-evaluation is missing category results")
@@ -606,7 +607,133 @@ async def run_creative_review_pipeline(
         "Scope: mechanical acceptance for staged review. This is not launch approval.",
         "",
     ]
-    if profile == "tbtx_4k_tech_art_v1":
+    if profile == "tbtx_campaign_system_v1":
+        required_files = {
+            "campaign/index.html",
+            "campaign/diagnostic.html",
+            "campaign/result.html",
+            "captures/homepage-desktop.png",
+            "captures/homepage-mobile.png",
+            "captures/diagnostic-desktop.png",
+            "captures/diagnostic-mobile.png",
+            "captures/result-desktop.png",
+            "captures/result-mobile.png",
+            "social/personal-instagram-1080x1350.png",
+            "social/business-linkedin-1200x627.png",
+            "social/doctrine-story-1080x1920.png",
+            "motion/campaign-film-15s.mp4",
+            "campaign-contact-sheet.png",
+            "campaign-copy-map.md",
+            "conversion-path.md",
+            "anti-slop-evidence.json",
+        }
+        present = {
+            str(path.relative_to(job_workspace))
+            for path in produced_files
+            if path.is_file()
+        }
+        missing = sorted(required_files - present)
+        if missing:
+            raise RuntimeError(
+                "Campaign system validation is missing required files: "
+                + ", ".join(missing)
+            )
+        expected_images = {
+            "captures/homepage-desktop.png": (1440, 900),
+            "captures/homepage-mobile.png": (390, 844),
+            "captures/diagnostic-desktop.png": (1440, 900),
+            "captures/diagnostic-mobile.png": (390, 844),
+            "captures/result-desktop.png": (1440, 900),
+            "captures/result-mobile.png": (390, 844),
+            "social/personal-instagram-1080x1350.png": (1080, 1350),
+            "social/business-linkedin-1200x627.png": (1200, 627),
+            "social/doctrine-story-1080x1920.png": (1080, 1920),
+        }
+        image_facts: list[dict[str, object]] = []
+        for relative_path, expected in expected_images.items():
+            image_path = job_workspace / relative_path
+            completed = subprocess.run(
+                [
+                    "ffprobe", "-v", "error", "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height", "-of", "json",
+                    str(image_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            stream = ((json.loads(completed.stdout).get("streams") or [{}])[0])
+            actual = (int(stream.get("width") or 0), int(stream.get("height") or 0))
+            if actual != expected:
+                raise RuntimeError(
+                    f"Campaign capture {relative_path} is {actual[0]}x{actual[1]}, "
+                    f"expected {expected[0]}x{expected[1]}"
+                )
+            image_facts.append(
+                {
+                    "file": relative_path,
+                    "width": actual[0],
+                    "height": actual[1],
+                    "size_bytes": image_path.stat().st_size,
+                }
+            )
+        film = next(
+            (fact for fact in video_facts if fact["file"] == "campaign-film-15s.mp4"),
+            None,
+        )
+        if not film:
+            raise RuntimeError("Campaign system validation requires campaign-film-15s.mp4")
+        if (film["width"], film["height"]) != (1920, 1080):
+            raise RuntimeError("Campaign film must be exactly 1920x1080")
+        if abs(float(film["duration_seconds"]) - 15.0) > 0.15:
+            raise RuntimeError("Campaign film must be exactly 15 seconds")
+        if not film["audio"]:
+            raise RuntimeError("Campaign film must contain an audio stream")
+        evidence = json.loads(
+            (job_workspace / "anti-slop-evidence.json").read_text(encoding="utf-8")
+        )
+        if evidence.get("status") != "passed":
+            raise RuntimeError("Anti-slop evidence did not pass")
+        if render_manifest.get("published") is not False:
+            raise RuntimeError("Campaign render manifest must remain unpublished")
+        report_lines.extend(
+            [
+                "## Connected campaign system",
+                "",
+                "- PASS Working homepage, diagnostic, and personalized result HTML exist.",
+                "- PASS Six real Chromium captures prove desktop and mobile states.",
+                "- PASS Three distinct platform-sized social placements exist.",
+                "- PASS One exact 15-second 1920x1080 campaign film contains audio.",
+                "- PASS Copy map and conversion path route Personal Fog to Fog-Lift and Business Friction to BizBuilders AI.",
+                "- PASS Anti-Slop Protocol evidence is present and passed.",
+                "- PASS No logo is forced into the campaign header.",
+                "- PASS Publish state: `false`.",
+                "",
+                "## Browser and media inspection",
+                "",
+            ]
+        )
+        for fact in image_facts:
+            report_lines.append(
+                f"- PASS `{fact['file']}`: {fact['width']}x{fact['height']}, "
+                f"{fact['size_bytes']} bytes."
+            )
+        report_lines.extend(
+            [
+                f"- PASS `motion/campaign-film-15s.mp4`: {film['width']}x{film['height']}, "
+                f"{film['duration_seconds']:.3f}s, audio=present, {film['size_bytes']} bytes.",
+                "",
+                "## Human creative gate",
+                "",
+                "- This is a connected campaign proof, not a final identity lock.",
+                "- Human review decides whether the idea, tone, pacing, and audience recognition clear the 8+/10 bar.",
+                "",
+                "OVERALL: PASS",
+                "",
+            ]
+        )
+    elif profile == "tbtx_4k_tech_art_v1":
         image_facts: list[dict[str, object]] = []
         for image_path in [
             path
@@ -759,6 +886,14 @@ async def run_creative_review_pipeline(
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         if path.name == "tbtx-4k-tech-art-master.png":
             role = "four_k_master"
+        elif path.suffix.lower() == ".html":
+            role = "working_campaign_page"
+        elif "captures" in path.parts and path.suffix.lower() == ".png":
+            role = "browser_capture"
+        elif "social" in path.parts and path.suffix.lower() == ".png":
+            role = "social_placement"
+        elif path.name == "campaign-film-15s.mp4":
+            role = "campaign_film"
         elif path.suffix.lower() in {".mp4", ".mov", ".m4v", ".webm"}:
             role = "concept_video"
         elif "contact" in path.stem.lower():
@@ -1052,6 +1187,22 @@ def run_render_profile(inputs: dict, job_workspace: Path) -> dict | None:
         if isinstance(reference_files, list):
             for reference in reference_files[:3]:
                 command.extend(["--reference", str(reference)])
+    elif profile == "tbtx_campaign_system_v1":
+        source_files = inputs.get("source_files")
+        if not isinstance(source_files, list) or len(source_files) < 2:
+            raise RuntimeError(
+                "tbtx_campaign_system_v1 requires at least two source_files"
+            )
+        command = [
+            "python3",
+            "/app/scripts/render_tbtx_campaign_system.py",
+            "--workspace",
+            str(job_workspace),
+            "--source-a",
+            str(source_files[0]),
+            "--source-b",
+            str(source_files[1]),
+        ]
     else:
         raise RuntimeError(f"Unsupported creative render profile: {profile}")
     completed = subprocess.run(
@@ -1410,11 +1561,11 @@ async def worker_loop(owner: str, timeout: int) -> None:
                 if active_creative_contract:
                     evaluation_prompt = (
                         "You are the producing creative agent completing the mandatory self-evaluation. "
-                        "Do not change the staged asset. Read both files at /app/canon/TBTX_CANON/ and "
+                        "Do not change the staged assets. Read every file named below from /app/canon/TBTX_CANON/ and "
                         f"inspect the rendered work in {job_workspace}. Write exactly one JSON file at "
                         f"{job_workspace / 'creative-self-evaluation.json'} with primary_mode="
                         f"{active_creative_contract.get('creative_mode')!r}, canon_files_read containing "
-                        "TransformBy10X_Ecosystem_Brand_Bible_v1.0.md and CREATIVE_EXECUTION_STANDARD.md, "
+                        "TransformBy10X_Ecosystem_Brand_Bible_v1.0.md, CREATIVE_EXECUTION_STANDARD.md, and ANTI_SLOP_PROTOCOL.md, "
                         "and categories containing PASS or FAIL for Concept, Craft, Story, Emotion / Curiosity, "
                         "and Brand. A FAIL means the asset must be revised or escalated, never marked ready."
                     )

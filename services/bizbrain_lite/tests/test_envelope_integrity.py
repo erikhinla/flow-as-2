@@ -134,6 +134,24 @@ def test_explicit_4k_profile_does_not_invent_social_video_sources() -> None:
     assert out["inputs"].get("reference_files") == []
 
 
+def test_explicit_campaign_system_profile_is_preserved() -> None:
+    envelope = {
+        "task_id": "campaign-system-1",
+        "title": "Build the connected campaign proof",
+        "goal": "Prove one idea across web, diagnostic, result, motion, and social outputs.",
+        "task_type": "content_prep",
+        "output_required": "One 15-second 1920x1080 MP4 video with audio, six PNG browser captures, and three PNG social placements",
+        "inputs": {
+            "render_profile": "tbtx_campaign_system_v1",
+            "render_profile_locked": True,
+            "source_files": ["a.mp4", "b.mp4"],
+        },
+    }
+    out = normalize_creative_envelope_inputs(envelope)
+    assert out["inputs"]["render_profile"] == "tbtx_campaign_system_v1"
+    assert out["inputs"]["source_files"] == ["a.mp4", "b.mp4"]
+
+
 def test_image_contract_auto_selects_4k_profile() -> None:
     envelope = {
         "task_id": "4k-auto-1",
@@ -232,6 +250,7 @@ def test_creative_export_enforces_both_canons_campaign_mode_and_human_gate() -> 
     assert v2["scope"]["reference_material"] == [
         "/app/canon/TBTX_CANON/TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
         "/app/canon/TBTX_CANON/CREATIVE_EXECUTION_STANDARD.md",
+        "/app/canon/TBTX_CANON/ANTI_SLOP_PROTOCOL.md",
     ]
     assert len(v2["acceptance_criteria"]) >= 5
 
@@ -253,7 +272,7 @@ def test_creative_self_evaluation_requires_all_passes(tmp_path: Path) -> None:
     evaluation.write_text(
         '{"primary_mode":"campaign","canon_files_read":['
         '"TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",'
-        '"CREATIVE_EXECUTION_STANDARD.md"],"categories":{'
+        '"CREATIVE_EXECUTION_STANDARD.md","ANTI_SLOP_PROTOCOL.md"],"categories":{'
         '"Concept":"PASS","Craft":"PASS","Story":"PASS",'
         '"Emotion / Curiosity":"PASS","Brand":"PASS"}}',
         encoding="utf-8",
