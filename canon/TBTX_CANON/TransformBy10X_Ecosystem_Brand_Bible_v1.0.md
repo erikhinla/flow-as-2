@@ -130,7 +130,7 @@ It must feel load-bearing, not decorative.
 | Text primary | Near-white / soft silver | High legibility |
 | Accent text | Copper or warm gold | Sparse use |
 
-**Needs Founder Decision:** Exact HEX values for production use, brand-safe color profiles, and any secondary palette expansions.
+The values above are directional material and light references, not a locked production palette. Select color and material choices to serve the specific concept. Do not force every execution into the same palette or turn these references into generic SaaS tokens.
 
 ### 3.4 Lighting
 - Dark cinematic environments
@@ -200,30 +200,13 @@ Separate quality from style.
 - May sit on glass, metal, or dark fields
 - Never placed on busy photographic backgrounds without controlled isolation
 
-**Needs Founder Decision:**  
-- Official logo files and lockups  
-- Clear space rules  
-- Minimum size  
-- Approved monochrome and reversed versions  
-- Any secondary marks or icons
-
-Until these are supplied and locked, agents must treat wordmarks as simple, high-legibility architectural text and avoid inventing marks.
+Logo use is concept-led, not template-led. Do not default to a logo in the website header, a conventional navigation pattern, or a persistent wordmark simply because other companies do. Use a mark, wordmark, lockup, or icon only when it carries the idea or the specific product/campaign requires a fixed system. Until a permanent lockup is approved for that purpose, agents may use high-legibility architectural text where identification is necessary and must avoid inventing a substitute brand mark.
 
 ---
 
 ## 6. Typography
 
-**Needs Founder Decision.**  
-
-No definitive type system is present in the provided architecture decks beyond clean sans-serif hierarchy.  
-
-Until decided:
-- Use highly legible geometric or neo-grotesque sans for all production work
-- Maintain strong hierarchy
-- Prefer clarity over personality
-- Avoid decorative or script faces
-
-Document the final choices here once made.
+Typography is selected to serve the specific idea, not to satisfy a pre-approved type system. Maintain strong hierarchy and legibility, but do not default to a generic geometric or neo-grotesque SaaS treatment. Avoid decorative or script faces unless the concept itself makes a clear, defensible case. A type pairing becomes fixed only when the actual product or campaign proves it needs to be fixed.
 
 ---
 
@@ -327,19 +310,13 @@ Mechanical proof over narration.
 
 ---
 
-## 13. Open Decisions (Needs Founder Input)
+## 13. Deliberately Unlocked Decisions
 
-The following items lack sufficient evidence in the current source material and must be decided before they can be locked:
+Logo lockups, typography, exact HEX values, icon systems, design tokens, photography treatment, and sound direction remain deliberately unlocked. They are not missing inventory and must not be pre-locked to make the system feel finished.
 
-- Exact logo files, clear space, and lockups
-- Final typography system (families, weights, hierarchy)
-- Production-ready HEX values and any secondary palette
-- Official photography guidelines beyond the industrial aesthetic
-- Any secondary icon system
-- Specific website component library or design tokens
-- Approved music / sound design direction for video
+Agents select those choices in service of the actual product, campaign, or concept while preserving the characteristics already defined here: sophisticated rather than corporate; precise rather than decorative; industrial weight without becoming cold or generic; capable of technical clarity and campaign-level impact.
 
-Until decided, agents default to the rules already stated and avoid invention.
+Escalate only when a durable decision is genuinely required by the work. When it is, lock that decision with the work as evidence—not in advance. Do not default to a conventional template, especially a logo-in-header website pattern, merely because it is familiar.
 
 ---
 
