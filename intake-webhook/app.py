@@ -18,7 +18,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-INTAKE_DIR = pathlib.Path("/data/intake")
+INTAKE_DIR = pathlib.Path(os.environ.get("INTAKE_DIR", "/data/intake"))
 INTAKE_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -59,12 +59,15 @@ DIAGNOSTICS: Dict[str, dict] = {
     "tbtx": {
         "brand": "TransformBy10X",
         "title": "Digital Fog Diagnostic",
-        "audience": "B2C founders, creators, operators, and professionals",
+        "audience": "For people carrying too much in their head",
         "path": "/diagnostic?type=tbtx",
         "source": "transformby10x.ai/diagnostic",
-        "cta": "Get Your Custom Roadmap",
-        "route_to": "bizbuilders.ai/roadmap",
-        "intro": "Find where your personal execution system is leaking attention, momentum, and AI leverage.",
+        "submit_label": "Show Me What's Keeping Me Stuck",
+        "cta": "Get the Fog-Lift Kit",
+        "route_to": "https://transformby10x.ai/foglift-kit.html",
+        "form_label": "/// DIGITAL FOG CHECK ///",
+        "result_label": "Your Digital Fog readout",
+        "intro": "See what is draining your attention, stalling good ideas, and making simple work feel heavier than it should.",
         "questions": [
             {
                 "id": "tbtx_q1",
@@ -154,13 +157,16 @@ DIAGNOSTICS: Dict[str, dict] = {
     },
     "bizbuilders": {
         "brand": "BizBuilders AI",
-        "title": "Infrastructure Readiness Diagnostic",
-        "audience": "B2B operators, agencies, consultants, and growth teams",
+        "title": "Business Friction Diagnostic",
+        "audience": "For teams doing work their tools were supposed to remove",
         "path": "/diagnostic?type=bizbuilders",
         "source": "bizbuilders.ai/roadmap",
-        "cta": "Activate Growth System",
-        "route_to": "bizbotmktng/activation",
-        "intro": "Map the business infrastructure gaps blocking repeatable lead capture, delivery, automation, and growth.",
+        "submit_label": "Show Me Where the Work Comes Back",
+        "cta": "Get My BizBuilders Roadmap",
+        "route_to": "https://bizbuilders.ai/roadmap",
+        "form_label": "/// BUSINESS FRICTION CHECK ///",
+        "result_label": "Your business friction readout",
+        "intro": "Find where AI, automation, and disconnected tools keep handing work back to your team.",
         "questions": [
             {
                 "id": "bbai_q1",
@@ -221,7 +227,7 @@ DIAGNOSTICS: Dict[str, dict] = {
             {
                 "id": "bbai_q9",
                 "dimension": "protocols",
-                "label": "How explicit are your rules for lead routing, escalation, approval, delivery QA, and handoff?",
+                "label": "How explicit are your rules for lead routing, escalation, approval, delivery QA, and ownership?",
                 "low": "Explicit",
                 "high": "Implicit",
             },
@@ -278,37 +284,58 @@ DIAGNOSTICS: Dict[str, dict] = {
     },
 }
 
-DIMENSION_LABELS = {
-    "ai_readiness": "AI readiness",
-    "analytics": "Analytics and attribution",
-    "attention": "Attention and focus",
-    "audience": "Audience clarity",
-    "automation": "Automation fit",
-    "capture": "Lead capture",
-    "clarity": "Clarity",
-    "crm": "CRM and follow-up",
-    "delivery": "Delivery system",
-    "folders": "Folders and source of truth",
-    "governance": "Governance",
-    "handoff": "Handoff",
-    "markdowns": "Markdowns and reusable knowledge",
-    "measurement": "Measurement",
-    "momentum": "Momentum",
-    "offer": "Offer clarity",
-    "protocols": "Protocols",
-    "qualification": "Qualification",
-    "scale": "Scale readiness",
-    "scripts": "Scripts and repeatable steps",
+B2C_DIMENSION_LABELS = {
+    "ai_readiness": "AI that needs constant babysitting",
+    "attention": "constant switching",
+    "capture": "interest that dies without a next step",
+    "clarity": "too many possible next moves",
+    "folders": "wasting time looking for what you need",
+    "handoff": "context that only exists in your head",
+    "markdowns": "re-solving the same thinking",
+    "measurement": "not knowing what is actually working",
+    "momentum": "good ideas that never get finished",
+    "offer": "difficulty explaining what you do",
+    "protocols": "not knowing what to do when work stalls",
+    "scripts": "rebuilding repeated work",
 }
 
-INDUSTRY_CONTEXT = {
-    "creator": "For creators, fog usually shows up as scattered content ideas, inconsistent publishing, unclear offers, and no reliable bridge from attention to revenue.",
-    "consulting": "For consulting and services, the highest leverage gap is usually the path from diagnostic insight to scoped engagement and repeatable delivery.",
-    "agency": "For agencies, the risk is usually handoff loss: marketing promises, sales context, fulfillment tasks, and reporting live in different places.",
-    "ecommerce": "For ecommerce, the leverage is in connecting campaign source, offer, purchase behavior, lifecycle follow-up, and product feedback.",
-    "health": "For health, wellness, and aesthetics, the system must protect trust: compliant intake, clear expectations, careful follow-up, and controlled claims.",
-    "local": "For local businesses, the priority is simple: turn searches, referrals, messages, and calls into one follow-up system that does not leak.",
-    "saas": "For SaaS, the infrastructure gap usually lives between acquisition, onboarding, activation, support signals, and expansion motion.",
+B2B_DIMENSION_LABELS = {
+    "ai_readiness": "AI that still needs babysitting",
+    "analytics": "results that cannot be traced",
+    "audience": "a buyer definition that is too broad",
+    "automation": "automation creating exceptions",
+    "capture": "interest that never becomes a stored lead",
+    "crm": "follow-up depending on memory",
+    "delivery": "delivery being rebuilt every time",
+    "folders": "scattered assets and decisions",
+    "governance": "unclear approval rules",
+    "handoff": "context disappearing between teams",
+    "markdowns": "knowledge trapped in people's heads",
+    "offer": "an offer people do not immediately understand",
+    "protocols": "unclear next steps and ownership",
+    "qualification": "bad-fit leads reaching expensive people",
+    "scale": "capacity that breaks under demand",
+    "scripts": "repeated work being rebuilt by hand",
+}
+
+B2C_CONTEXT = {
+    "creator": "You do not have an idea problem. Too many ideas and loose ends are competing for the same attention.",
+    "consulting": "The work is not stuck because you have nothing to offer. The next clear move keeps getting buried under decisions.",
+    "agency": "Client work, your own work, and constant switching are fighting for the same attention. Your priorities are paying the price.",
+    "ecommerce": "Products, content, orders, and promotion are all asking to be first. The result is motion without a clean finish line.",
+    "health": "Care work already demands attention. Scattered admin and unfinished decisions are taking what little focus remains.",
+    "local": "Calls, messages, customers, and daily problems keep interrupting the work that would make tomorrow easier.",
+    "saas": "Building, selling, supporting, and deciding are collapsing into the same day. Important work keeps losing the fight.",
+}
+
+B2B_CONTEXT = {
+    "creator": "Content is not the first problem. The break is between attention, a clear offer, captured interest, and accountable follow-up.",
+    "consulting": "Work is leaking between interest, scope, delivery, and follow-up. Your team is filling those gaps by hand.",
+    "agency": "Promises, client context, production work, and reporting are getting reconnected by people instead of carried by the workflow.",
+    "ecommerce": "Campaign, purchase, support, and repeat-sale data are split apart. People are compensating for what the tools do not connect.",
+    "health": "Trust depends on clean intake, careful follow-up, and controlled claims. Manual rescue work makes every gap riskier.",
+    "local": "Searches, referrals, calls, and messages are entering through different doors. Follow-up depends too heavily on someone remembering.",
+    "saas": "Acquisition, onboarding, product use, support, and expansion signals are not moving together. Teams are translating the gaps by hand.",
 }
 
 
@@ -327,19 +354,20 @@ def category_for(score: int, max_score: int) -> str:
     return "Critical Fog"
 
 
-def score_dimensions(answers: List[DiagnosticAnswer]) -> Dict[str, dict]:
+def score_dimensions(answers: List[DiagnosticAnswer], diagnostic_type: str = "tbtx") -> Dict[str, dict]:
     grouped: Dict[str, List[int]] = {}
     for answer in answers:
         if not answer.dimension:
             continue
         grouped.setdefault(answer.dimension, []).append(answer.answer_value)
 
+    labels = B2B_DIMENSION_LABELS if diagnostic_type == "bizbuilders" else B2C_DIMENSION_LABELS
     scores = {}
     for dimension, values in grouped.items():
         total = sum(values)
         max_total = len(values) * 5
         scores[dimension] = {
-            "label": DIMENSION_LABELS.get(dimension, dimension.replace("_", " ").title()),
+            "label": labels.get(dimension, dimension.replace("_", " ")),
             "score": total,
             "max_score": max_total,
             "severity": round(total / max_total, 2) if max_total else 0,
@@ -347,56 +375,84 @@ def score_dimensions(answers: List[DiagnosticAnswer]) -> Dict[str, dict]:
     return scores
 
 
-def industry_context(industry: str) -> str:
+def audience_context(industry: str, diagnostic_type: str) -> str:
     key = (industry or "").strip().lower()
-    for token, context in INDUSTRY_CONTEXT.items():
+    contexts = B2B_CONTEXT if diagnostic_type == "bizbuilders" else B2C_CONTEXT
+    for token, context in contexts.items():
         if token in key:
             return context
-    if industry:
-        return (
-            f"For {industry}, the diagnostic should be read as an infrastructure map: "
-            "where attention, capture, documentation, handoff, and follow-up are not yet supporting the outcome."
-        )
-    return "No industry was provided, so this diagnosis focuses on the general execution system instead of a niche-specific workflow."
+    if diagnostic_type == "bizbuilders":
+        return "The business is relying on people to remember, chase, translate, and reconnect work that the workflow should carry."
+    return "Too much is competing for your attention, so starting and finishing both cost more energy than they should."
 
 
 def build_report(sub: DiagnosticSub, category: str, dimension_scores: Dict[str, dict]) -> dict:
     ordered = sorted(dimension_scores.items(), key=lambda item: item[1]["severity"], reverse=True)
     top_gaps = ordered[:4]
     gap_labels = [details["label"] for _, details in top_gaps]
-    primary_gap = gap_labels[0] if gap_labels else "Execution infrastructure"
+    primary_gap = gap_labels[0] if gap_labels else "the first point of friction"
 
     if sub.diagnostic_type == "bizbuilders":
         summary = (
-            f"{sub.company or sub.name} is showing a {category.lower()} infrastructure pattern. "
-            f"The strongest constraint is {primary_gap.lower()}, which means growth work will keep leaking value until capture, routing, documentation, and delivery rules become one operating system."
+            f"Your answers show a {category.lower()} business-friction pattern. "
+            f"The biggest break is {primary_gap.lower()}. That is where work is coming back to people, slowing delivery, and eating margin."
         )
         roadmap = [
-            "Lock the offer, buyer trigger, and qualification criteria.",
-            "Connect lead capture to CRM fields, owner assignment, and follow-up stages.",
-            "Create the quad-keystone layer: folders, markdowns, scripts, and protocols.",
-            "Add analytics events for diagnostic started, submitted, routed, and converted.",
-            "Only then add heavier automation or agent execution."
+            f"Fix {primary_gap.lower()} before touching the rest.",
+            "Trace one live lead or client job and mark every place it stalls, repeats, or loses context.",
+            "Remove one repeat loop and give one person clear ownership of the repaired path.",
+            "Run the repaired path three times before deciding what should be automated.",
         ]
-        next_move = f"Build the BizBuilders AI Custom Roadmap around {primary_gap.lower()} first."
+        first_moves = [
+            "Name the exact point where work returns to a person.",
+            "Find the duplicate step, tool, or approval creating the loop.",
+            "Measure the time and margin lost before adding another tool.",
+        ]
+        next_move = (
+            f"Build the BizBuilders Roadmap around {primary_gap.lower()}—the first place the work is coming back to your team."
+        )
+        headings = {
+            "readout": "Your business friction readout",
+            "context": "What this is costing",
+            "gaps": "Where work comes back",
+            "moves": "Fix this first",
+            "plan": "Repair order",
+            "next": "Stop paying people to bridge the gap",
+        }
+        cta_note = "Map the first repair. Do not add more automation to the mess."
+        headline = f"The work keeps coming back through {primary_gap.lower()}"
     else:
         summary = (
-            f"{sub.name} is showing a {category.lower()} digital fog pattern. "
-            f"The biggest drag is {primary_gap.lower()}, so the next win is not another tool. It is a cleaner personal execution system that can hold decisions, assets, prompts, and next actions."
+            f"Your answers show a {category.lower()} Digital Fog pattern. "
+            f"The heaviest drag is {primary_gap.lower()}. That is why good intentions keep turning into tabs, notes, restarts, and unfinished work."
         )
         roadmap = [
-            "Name one active outcome and remove unrelated work from the workspace.",
-            "Create one source-of-truth folder for assets, notes, prompts, and decisions.",
-            "Turn repeated thinking into markdown checklists or briefs.",
-            "Write the next-action protocol for when work stalls.",
-            "Route the result into a BizBuilders AI Custom Roadmap when the offer/workflow is ready."
+            "Choose one thing worth finishing this week. Park the rest.",
+            "Put everything needed for it in one place.",
+            "Write the next three physical actions—not a new master plan.",
+            "Silence one source of interruption until the work is done.",
         ]
-        next_move = f"Start with {primary_gap.lower()} and build the smallest repeatable workflow around it."
+        first_moves = [
+            f"Clear the pressure around {primary_gap.lower()} first.",
+            "Pick one unfinished thing that would create real relief.",
+            "Make the next action small enough to do today.",
+        ]
+        next_move = "Use the Fog-Lift Kit to get one priority out of your head and moving again."
+        headings = {
+            "readout": "Your Digital Fog readout",
+            "context": "What your answers say",
+            "gaps": "Where the fog is thickest",
+            "moves": "Clear this first",
+            "plan": "Your next seven days",
+            "next": "Do not add another tool",
+        }
+        cta_note = "Clear one priority. Make the next move obvious."
+        headline = f"The fog gets thickest around {primary_gap.lower()}"
 
     return {
-        "headline": f"{category}: {primary_gap} is the first constraint",
+        "headline": headline,
         "summary": summary,
-        "industry_context": industry_context(sub.industry or ""),
+        "audience_context": audience_context(sub.industry or "", sub.diagnostic_type),
         "top_gaps": [
             {
                 "dimension": dimension,
@@ -407,14 +463,11 @@ def build_report(sub: DiagnosticSub, category: str, dimension_scores: Dict[str, 
             }
             for dimension, details in top_gaps
         ],
-        "recommended_infrastructure": [
-            "Folders: one source of truth for assets, decisions, and active work.",
-            "Markdowns: reusable briefs, checklists, offers, SOPs, and handoff notes.",
-            "Scripts: repeatable steps for capture, routing, follow-up, and reporting.",
-            "Protocols: rules for escalation, approval, completion, and next action."
-        ],
-        "phased_plan": roadmap,
-        "highest_leverage_next_move": next_move,
+        "first_moves": first_moves,
+        "action_plan": roadmap,
+        "next_step": next_move,
+        "headings": headings,
+        "cta_note": cta_note,
     }
 
 
@@ -508,7 +561,6 @@ def render_page(config: dict, question_markup: str) -> str:
       --muted: #4a4a44;
     }}
     * {{ box-sizing: border-box; border-radius: 0 !important; }}
-    * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -578,7 +630,6 @@ def render_page(config: dict, question_markup: str) -> str:
       overflow: hidden;
     }}
     form::before, .result::before {{
-      content: "/// SYSTEM DIAGNOSTIC ///";
       display: block;
       background: var(--text-primary);
       color: var(--bg-color);
@@ -588,6 +639,8 @@ def render_page(config: dict, question_markup: str) -> str:
       letter-spacing: 0.08em;
       font-size: 0.78rem;
     }}
+    form::before {{ content: "{config['form_label']}"; }}
+    .result::before {{ content: "{config['result_label']}"; }}
     form > * {{
       margin-left: 18px;
       margin-right: 18px;
@@ -655,21 +708,48 @@ def render_page(config: dict, question_markup: str) -> str:
       cursor: pointer;
       width: calc(100% - 36px);
       margin-bottom: 18px;
+      transition: background-color 180ms ease, transform 180ms ease;
     }}
     button:hover {{ background: var(--accent-red); }}
+    button:active {{ transform: translateY(2px); }}
+    button:focus-visible, .result-cta:focus-visible, nav a:focus-visible {{
+      outline: 4px solid var(--accent-red);
+      outline-offset: 3px;
+    }}
     .result {{
       margin-top: 16px;
       display: none;
     }}
+    .result-hero {{
+      display: grid;
+      gap: 10px;
+      padding: 22px 18px 6px;
+      max-width: 1000px;
+    }}
+    .scoreline, .action-label {{
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.78rem;
+      font-weight: 900;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }}
+    .action-label {{ color: var(--accent-red); }}
+    .scoreline {{ color: var(--muted); }}
     .result h2 {{
-      margin: 18px 18px 8px;
+      margin: 0;
       font-family: "Archivo Black", Impact, sans-serif;
       text-transform: uppercase;
-      font-size: clamp(2rem, 5vw, 4.4rem);
-      line-height: 0.9;
+      font-size: clamp(2rem, 5vw, 4.1rem);
+      line-height: 0.92;
       letter-spacing: -0.04em;
+      text-wrap: balance;
     }}
-    .result > p {{ margin-left: 18px; margin-right: 18px; }}
+    .result-lead {{
+      max-width: 72ch;
+      font-size: clamp(1rem, 1.8vw, 1.24rem);
+      line-height: 1.55;
+      text-wrap: pretty;
+    }}
     .result-grid {{
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -678,7 +758,7 @@ def render_page(config: dict, question_markup: str) -> str:
     }}
     .result-panel {{
       border: 2px solid var(--text-primary);
-      padding: 14px;
+      padding: 18px;
       background: var(--surface-color);
     }}
     .result-panel h3 {{
@@ -688,6 +768,50 @@ def render_page(config: dict, question_markup: str) -> str:
       font-size: 0.9rem;
       color: var(--accent-red);
     }}
+    .result-action {{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px 24px;
+      align-items: end;
+      margin: 0 18px 18px;
+      padding: 22px;
+      background: var(--text-primary);
+      color: var(--bg-color);
+    }}
+    .result-action h3 {{
+      margin: 0;
+      max-width: 25ch;
+      font-family: "Archivo Black", Impact, sans-serif;
+      font-size: clamp(1.6rem, 3vw, 2.8rem);
+      line-height: 0.98;
+      letter-spacing: -0.035em;
+      text-transform: uppercase;
+      text-wrap: balance;
+    }}
+    .result-action .action-label {{ grid-column: 1 / -1; }}
+    .result-action .action-note {{
+      grid-column: 1 / -1;
+      color: #b9b9b1;
+      max-width: 62ch;
+    }}
+    .result-cta {{
+      display: inline-flex;
+      min-height: 52px;
+      align-items: center;
+      justify-content: center;
+      padding: 13px 18px;
+      background: var(--accent-red);
+      color: white;
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.88rem;
+      font-weight: 900;
+      letter-spacing: 0.03em;
+      text-decoration: none;
+      text-transform: uppercase;
+      transition: background-color 180ms ease, transform 180ms ease;
+    }}
+    .result-cta:hover {{ background: #ff3030; transform: translateY(-2px); }}
+    .result-cta:active {{ transform: translateY(1px); }}
     ul {{ margin: 0; padding-left: 18px; color: var(--muted); }}
     li + li {{ margin-top: 5px; }}
     strong {{ color: var(--accent-red); }}
@@ -704,11 +828,15 @@ def render_page(config: dict, question_markup: str) -> str:
       .grid {{ grid-template-columns: 1fr; }}
       .span-2 {{ grid-column: auto; }}
       .result-grid {{ grid-template-columns: 1fr; }}
+      .result-action {{ grid-template-columns: 1fr; align-items: start; }}
+      .result-cta {{ justify-self: start; }}
     }}
     @media (max-width: 520px) {{
       main {{ width: min(100% - 22px, 1060px); padding-top: 18px; }}
-      form, .result {{ padding: 14px; }}
+      form, .result {{ box-shadow: 7px 7px 0 var(--text-primary); }}
       nav {{ align-items: flex-start; flex-direction: column; }}
+      .result-hero {{ padding-top: 18px; }}
+      .result-panel, .result-action {{ padding: 15px; }}
     }}
   </style>
 </head>
@@ -725,7 +853,6 @@ def render_page(config: dict, question_markup: str) -> str:
       </div>
       <div class="brief">
         <p>{config['intro']}</p>
-        <p>This maps your answers to the quad keystone: folders, markdowns, scripts, and protocols.</p>
       </div>
     </header>
     <form id="diagnostic-form">
@@ -749,7 +876,7 @@ def render_page(config: dict, question_markup: str) -> str:
         </label>
       </div>
       {question_markup}
-      <button type="submit">{config['cta']}</button>
+      <button type="submit">{config['submit_label']}</button>
       <div class="error" id="error"></div>
     </form>
     <section class="result" id="result" aria-live="polite"></section>
@@ -761,8 +888,18 @@ def render_page(config: dict, question_markup: str) -> str:
     const result = document.querySelector("#result");
     const error = document.querySelector("#error");
 
+    function escapeHtml(value) {{
+      return String(value).replace(/[&<>"']/g, (character) => ({{
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#039;"
+      }})[character]);
+    }}
+
     function list(items) {{
-      return `<ul>${{items.map((item) => `<li>${{item}}</li>`).join("")}}</ul>`;
+      return `<ul>${{items.map((item) => `<li>${{escapeHtml(item)}}</li>`).join("")}}</ul>`;
     }}
 
     form.addEventListener("submit", async (event) => {{
@@ -804,33 +941,35 @@ def render_page(config: dict, question_markup: str) -> str:
         );
         result.style.display = "block";
         result.innerHTML = `
-          <h2>${{body.report.headline}}</h2>
-          <p><strong>Score:</strong> ${{body.score}} / ${{body.max_score}} | <strong>Category:</strong> ${{body.category}}</p>
-          <p>${{body.report.summary}}</p>
+          <div class="result-hero">
+            <h2>${{escapeHtml(body.report.headline)}}</h2>
+            <p class="scoreline">${{escapeHtml(body.category)}} · ${{body.score}} / ${{body.max_score}}</p>
+            <p class="result-lead">${{escapeHtml(body.report.summary)}}</p>
+          </div>
           <div class="result-grid">
-            <div class="result-panel">
-              <h3>Industry Context</h3>
-              <p>${{body.report.industry_context}}</p>
-            </div>
-            <div class="result-panel">
-              <h3>Top Gaps</h3>
+            <article class="result-panel">
+              <h3>${{escapeHtml(body.report.headings.context)}}</h3>
+              <p>${{escapeHtml(body.report.audience_context)}}</p>
+            </article>
+            <article class="result-panel">
+              <h3>${{escapeHtml(body.report.headings.gaps)}}</h3>
               ${{list(topGaps)}}
-            </div>
-            <div class="result-panel">
-              <h3>Recommended Infrastructure</h3>
-              ${{list(body.report.recommended_infrastructure)}}
-            </div>
-            <div class="result-panel">
-              <h3>Phased Plan</h3>
-              ${{list(body.report.phased_plan)}}
-            </div>
+            </article>
+            <article class="result-panel">
+              <h3>${{escapeHtml(body.report.headings.moves)}}</h3>
+              ${{list(body.report.first_moves)}}
+            </article>
+            <article class="result-panel">
+              <h3>${{escapeHtml(body.report.headings.plan)}}</h3>
+              ${{list(body.report.action_plan)}}
+            </article>
           </div>
-          <div class="result-panel" style="margin-top:14px">
-            <h3>Highest Leverage Next Move</h3>
-            <p>${{body.report.highest_leverage_next_move}}</p>
-            <p><strong>Next CTA:</strong> ${{body.next_cta}} | <strong>Route:</strong> ${{body.route_to}}</p>
-            <p><strong>Session:</strong> ${{body.session_id}}</p>
-          </div>
+          <section class="result-action">
+            <p class="action-label">${{escapeHtml(body.report.headings.next)}}</p>
+            <h3>${{escapeHtml(body.report.next_step)}}</h3>
+            <a class="result-cta" href="${{escapeHtml(body.route_to)}}">${{escapeHtml(body.next_cta)}}</a>
+            <p class="action-note">${{escapeHtml(body.report.cta_note)}}</p>
+          </section>
         `;
         result.scrollIntoView({{ behavior: "smooth", block: "start" }});
       }} catch (err) {{
@@ -863,7 +1002,7 @@ def intake(sub: Sub):
         "source": sub.source,
         "created": datetime.datetime.utcnow().isoformat(),
     }
-    pathlib.Path("/data/intake/" + task_id + ".json").write_text(json.dumps(envelope, indent=2))
+    (INTAKE_DIR / f"{task_id}.json").write_text(json.dumps(envelope, indent=2))
     print("Intake received:", task_id, routing, flush=True)
     return {
         "status": "received",
@@ -880,7 +1019,7 @@ def diagnostic_submit(sub: DiagnosticSub):
     score = sum(answer.answer_value for answer in sub.answers)
     max_score = len(sub.answers) * 5
     category = category_for(score, max_score)
-    dimension_scores = score_dimensions(sub.answers)
+    dimension_scores = score_dimensions(sub.answers, sub.diagnostic_type)
     report = build_report(sub, category, dimension_scores)
     record = {
         "session_id": session_id,
@@ -905,7 +1044,7 @@ def diagnostic_submit(sub: DiagnosticSub):
         "answers": [answer.model_dump() for answer in sub.answers],
         "created": datetime.datetime.utcnow().isoformat(),
     }
-    pathlib.Path("/data/intake/" + session_id + ".json").write_text(json.dumps(record, indent=2))
+    (INTAKE_DIR / f"{session_id}.json").write_text(json.dumps(record, indent=2))
     print("Diagnostic received:", session_id, sub.diagnostic_type, category, score, flush=True)
     return {
         "status": "received",
@@ -924,5 +1063,5 @@ def diagnostic_submit(sub: DiagnosticSub):
 def submissions(api_key: str = ""):
     if api_key != os.environ.get("WEBHOOK_API_KEY", ""):
         return {"error": "unauthorized"}
-    files = sorted(pathlib.Path("/data/intake").glob("*.json"), reverse=True)
+    files = sorted(INTAKE_DIR.glob("*.json"), reverse=True)
     return [json.loads(f.read_text()) for f in files[:20]]
