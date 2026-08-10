@@ -1,0 +1,126 @@
+{
+  "schema": "faas.task_envelope",
+  "version": "2.0",
+  "task_id": "c614d756-c574-457b-8f38-813965564f3f",
+  "created_at": "2026-08-09T15:24:00Z",
+  "source": "dashboard",
+  "title": "Build the connected TransformBy10X campaign proof",
+  "instruction": "Read all three mounted creative authorities completely. In Campaign Mode, execute one connected idea across a working homepage moment, Personal and Business diagnostic entry, personalized result states, a 15-second motion piece with audio, and three platform-specific social placements. Use the existing Managing Digital Fog footage as source material. Stage the complete package for the human 8+/10 Creative Gate. Do not publish and do not lock permanent identity decisions.",
+  "out_of_scope": [
+    "Publishing",
+    "Replacing the live diagnostics",
+    "Permanent logo, type, color, icon, token, or sound decisions",
+    "Additional unrelated campaign concepts"
+  ],
+  "work_class": "creative_export",
+  "impact_if_wrong": "public",
+  "priority": "urgent",
+  "deliverable": "One 15-second 1920x1080 MP4 video with audio, six PNG browser captures, three PNG social placements, working homepage, diagnostic, and result HTML, plus the copy and conversion map. Together they must prove FAAS can execute a connected campaign system instead of returning one isolated image.",
+  "required_artifacts": [
+    "campaign/index.html",
+    "campaign/diagnostic.html",
+    "campaign/result.html",
+    "campaign/campaign.css",
+    "campaign/campaign.js",
+    "captures/homepage-desktop.png",
+    "captures/homepage-mobile.png",
+    "captures/diagnostic-desktop.png",
+    "captures/diagnostic-mobile.png",
+    "captures/result-desktop.png",
+    "captures/result-mobile.png",
+    "motion/campaign-film-15s.mp4",
+    "social/personal-instagram-1080x1350.png",
+    "social/business-linkedin-1200x627.png",
+    "social/doctrine-story-1080x1920.png",
+    "campaign-contact-sheet.png",
+    "concept-brief.md",
+    "campaign-copy-map.md",
+    "conversion-path.md",
+    "anti-slop-evidence.json",
+    "creative-self-evaluation.json",
+    "validation-report.md",
+    "package-manifest.json",
+    "render-manifest.json"
+  ],
+  "acceptance_criteria": [
+    "Campaign Mode is primary and TransformBy10X carries one master idea across the personal and business consequences.",
+    "Business copy reaches the pressure and recognition of: AI Created a Job. Nobody Wanted. and Your AI Tools Didn't Remove the Work. They Reassigned It to You.",
+    "Personal copy remains specific to lived Digital Fog and does not borrow B2B workload language.",
+    "No public copy uses handoff, operational readiness, operating layer, transformation journey, unlock, leverage, seamless, or similar corporate filler.",
+    "The homepage has no default logo-in-header treatment and does not look like a SaaS template.",
+    "Dominant imagery is physically constructed from optical glass, machined steel, resin, copper, and architectural light; the original footage appears only as subordinate lived-condition evidence.",
+    "The working diagnostic allows Personal and Business route selection and includes functional selection, loading, error, and result behavior.",
+    "Personal Fog routes to Fog-Lift; Business Friction routes to BizBuilders AI; BizBot remains downstream until readiness.",
+    "Six real Chromium captures prove homepage, diagnostic, and result states on desktop and mobile.",
+    "The 15-second 1920x1080 MP4 has an audio stream and communicates condition, contradiction, and diagnostic response.",
+    "Three social placements are distinct, platform-sized, and preserve the same campaign idea.",
+    "The package contains a copy map and conversion path, not only visual files.",
+    "Anti-slop checks prove zero em dashes in visible pages, no generic AI hype, reduced-motion handling, viewport stability, one concept, and no logo in the header.",
+    "Every mandatory agent category passes, the package remains unpublished, and human review still controls approval."
+  ],
+  "scope": {
+    "repository": "/workspace",
+    "allowed_paths": [
+      "/workspace/jobs/c614d756-c574-457b-8f38-813965564f3f"
+    ],
+    "allowed_actions": [
+      "read",
+      "write_artifacts",
+      "render_media",
+      "capture_browser_states",
+      "validate",
+      "stage_for_review"
+    ],
+    "forbidden_actions": [
+      "publish",
+      "deploy_campaign_to_public_site",
+      "delete",
+      "change_routing",
+      "declare_final_design",
+      "lock_permanent_identity",
+      "infer_additional_objectives"
+    ],
+    "reference_material": [
+      "/app/canon/TBTX_CANON/TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
+      "/app/canon/TBTX_CANON/CREATIVE_EXECUTION_STANDARD.md",
+      "/app/canon/TBTX_CANON/ANTI_SLOP_PROTOCOL.md"
+    ],
+    "constraints": [
+      "One connected concept must govern every surface.",
+      "Existing footage is source material, not a mandatory style lock.",
+      "The status green signal is campaign evidence, not a permanent palette.",
+      "No logo appears in the header.",
+      "Open identity decisions remain open."
+    ]
+  },
+  "creative": {
+    "campaign": "TransformBy10X: Everything works. Nothing moves.",
+    "project": "TransformBy10X connected Work and Life campaign proof",
+    "asset_label": "FAAS campaign system proof 01",
+    "defined_use": "Provisional connected campaign proof for human review; not a permanent identity lock.",
+    "primary_mode": "campaign",
+    "design_lifecycle": "provisional_review",
+    "design_variance": 9,
+    "visual_density": 5,
+    "motion_intensity": 8
+  },
+  "gates": {
+    "review_required": true,
+    "rollback_required": false,
+    "publish_allowed": false
+  },
+  "inputs": {
+    "render_profile": "tbtx_campaign_system_v1",
+    "render_profile_locked": true,
+    "force_media_render": true,
+    "source_files": [
+      "/workspace/source/campaign/managing-digital-fog-studio.mp4",
+      "/workspace/source/campaign/managing-digital-fog-remote.mp4",
+      "/workspace/source/campaign/physical-routing-instrument-v1.png",
+      "/workspace/source/campaign/handoff-architecture-v1.png"
+    ]
+  },
+  "review_required": true,
+  "rollback_required": false,
+  "status": "pending"
+}

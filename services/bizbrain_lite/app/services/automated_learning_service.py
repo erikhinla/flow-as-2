@@ -7,6 +7,7 @@ Triggered by worker completion events to build organizational memory.
 
 import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, Dict, Any, List
 from uuid import uuid4
 
@@ -110,6 +111,11 @@ class AutomatedLearningService:
             
             session.add(reflection)
             await session.commit()
+
+            AutomatedLearningService._write_reflection_artifact(
+                reflection=reflection,
+                result_pointer=result_pointer,
+            )
             
             logger.info("Auto-reflection created: reflection_id=%s job_id=%s", 
                       reflection_id, job.job_id)
@@ -118,6 +124,45 @@ class AutomatedLearningService:
         except Exception as e:
             logger.error("Reflection generation failed for job_id=%s: %s", job.job_id, e)
             return None
+
+    @staticmethod
+    def _write_reflection_artifact(
+        *,
+        reflection: ReflectionRecord,
+        result_pointer: str,
+    ) -> Path:
+        """Persist the database reflection beside the primary job artifact."""
+        output_path = Path(result_pointer).resolve()
+        reflection_path = output_path.parent / "reflection.md"
+        reflection_path.parent.mkdir(parents=True, exist_ok=True)
+        reflection_path.write_text(
+            "\n".join(
+                [
+                    f"# Reflection — {reflection.job_id}",
+                    "",
+                    f"- Reflection ID: `{reflection.reflection_id}`",
+                    f"- Task ID: `{reflection.task_id}`",
+                    f"- Owner: `{reflection.owner}`",
+                    f"- Context: `{reflection.context_type or 'unspecified'}`",
+                    f"- Sensitivity: `{reflection.sensitivity_level}`",
+                    "",
+                    "## What worked",
+                    "",
+                    reflection.what_worked,
+                    "",
+                    "## What failed",
+                    "",
+                    reflection.what_failed,
+                    "",
+                    "## Pattern observed",
+                    "",
+                    reflection.pattern_observed or "No reusable pattern recorded.",
+                    "",
+                ]
+            ),
+            encoding="utf-8",
+        )
+        return reflection_path
     
     @staticmethod
     async def _analyze_success_patterns(job: JobRecord) -> str:

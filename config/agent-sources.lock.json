@@ -1,0 +1,33 @@
+{
+  "_comment": "Pinned agent image digests for FLOW AS 2.0 — verified on 2026-08-07",
+  "_flow_as_version": "2.0",
+  "agents": {
+    "hermes": {
+      "repository": "https://github.com/NousResearch/hermes-agent",
+      "version": "v0.20.0 (2026.8.3)",
+      "commit": "3c27eb6234bf91b8ceee9e9071591b31e9b148cb",
+      "image": "nousresearch/hermes-agent@sha256:16788311e2fa3035456bdc1bafb8ec2b1777db64ebf020af9bb7eb73c3712c9e",
+      "entrypoint": "POST /run",
+      "queue_owner": "alpha",
+      "queue_key": "flow:alpha:jobs"
+    },
+    "openclaw": {
+      "repository": "https://github.com/openclaw/openclaw",
+      "version": "2026.7.1",
+      "commit": "2d2ddc43d0dcf71f31283d780f9fe9ff4cc04fe4",
+      "image": "ghcr.io/openclaw/openclaw@sha256:6a31d44b2944e7adcd2b582bf6fb463111264ebca97a0201795b799135bd102c",
+      "entrypoint": "POST http://openclaw-agent:18790/run",
+      "queue_owner": "beta",
+      "queue_key": "flow:beta:jobs"
+    },
+    "agent_zero": {
+      "repository": "https://github.com/agent0ai/agent-zero",
+      "version": "v2.8",
+      "commit": "5ff106a2d489d17c2a3b378521a8f29fb29cf77d",
+      "image": "agent0ai/agent-zero@sha256:8c5eff81a46fc956bc247e01a345beadc09acbeecf31873324b843dacf937c4c",
+      "entrypoint": "POST /api/message",
+      "queue_owner": "gamma",
+      "queue_key": "flow:gamma:jobs"
+    }
+  }
+}

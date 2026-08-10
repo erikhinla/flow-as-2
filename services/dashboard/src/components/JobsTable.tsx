@@ -1,7 +1,6 @@
 import { apiFetch } from '../lib/api'
-import React from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Clock, CheckCircle, XCircle, AlertCircle, ExternalLink } from 'lucide-react'
+import { Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react'
 
 interface Job {
   task_id: string
@@ -76,14 +75,6 @@ export function JobsTable({ limit }: JobsTableProps) {
       default:
         return 'text-gray-600 bg-gray-50'
     }
-  }
-
-  const formatDuration = (started: string, completed?: string) => {
-    if (!completed) return '--'
-    const start = new Date(started)
-    const end = new Date(completed)
-    const duration = (end.getTime() - start.getTime()) / 1000
-    return `${duration.toFixed(1)}s`
   }
 
   if (isLoading) {

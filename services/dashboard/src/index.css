@@ -1,14 +1,110 @@
-@import 'tailwindcss/base';
-@import 'tailwindcss/components';
-@import 'tailwindcss/utilities';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
+  :root {
+    color: #17201d;
+    background: #e9e6dc;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+  }
+
   html {
-    font-family: 'Inter', system-ui, sans-serif;
+    scroll-behavior: smooth;
+    font-family: 'Avenir Next', 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  body {
+    min-width: 320px;
+    min-height: 100dvh;
+    margin: 0;
+    background:
+      radial-gradient(circle at 8% -10%, rgba(215, 154, 82, 0.16), transparent 31rem),
+      linear-gradient(180deg, #efede6 0%, #e8e5dc 100%);
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  ::selection {
+    color: #f7f4ec;
+    background: #8a5724;
   }
 }
 
 @layer components {
+  .app-shell {
+    @apply relative min-h-screen overflow-x-hidden text-flow-ink;
+  }
+
+  .app-shell::before {
+    content: '';
+    @apply pointer-events-none fixed inset-0 z-50 opacity-[0.035];
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.65'/%3E%3C/svg%3E");
+  }
+
+  .command-rail {
+    @apply sticky top-0 z-40 border-b border-white/10 bg-flow-night text-white;
+    box-shadow: 0 18px 60px rgba(12, 18, 16, 0.18);
+  }
+
+  .command-tab {
+    @apply relative inline-flex min-h-11 items-center gap-2 px-3 text-sm font-medium text-white/55 transition-colors duration-200;
+  }
+
+  .command-tab:hover,
+  .command-tab:focus-visible {
+    @apply text-white outline-none;
+  }
+
+  .command-tab[aria-current='page'] {
+    @apply text-white;
+  }
+
+  .command-tab[aria-current='page']::after {
+    content: '';
+    @apply absolute inset-x-3 bottom-0 h-0.5 bg-flow-accent;
+  }
+
+  .flow-surface {
+    @apply border border-flow-line bg-flow-surface;
+    box-shadow: 0 14px 42px rgba(45, 49, 45, 0.07), inset 0 1px rgba(255, 255, 255, 0.72);
+  }
+
+  .flow-input {
+    @apply w-full rounded-lg border border-flow-line bg-white/80 text-flow-ink outline-none transition duration-200 placeholder:text-stone-400;
+  }
+
+  .flow-input:focus {
+    @apply border-flow-accent-deep ring-2 ring-flow-accent/30;
+  }
+
+  .flow-button {
+    @apply transition duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-flow-accent focus-visible:ring-offset-2;
+  }
+
+  .flow-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+
+  .flow-button:active:not(:disabled) {
+    transform: translateY(1px) scale(0.99);
+  }
+
+  .signal-panel {
+    @apply overflow-hidden border border-white/10 bg-flow-night text-white;
+    box-shadow: 0 24px 80px rgba(12, 18, 16, 0.22);
+  }
+
+  .skip-link {
+    @apply fixed left-4 top-3 z-[60] -translate-y-20 rounded-md bg-white px-4 py-2 font-semibold text-flow-ink transition-transform focus:translate-y-0;
+  }
+
   .status-dot {
     @apply w-2 h-2 rounded-full;
   }
@@ -40,6 +136,11 @@
   .table-row {
     @apply hover:bg-gray-50 border-b border-gray-200;
   }
+
+  .flow-scrollbar {
+    scrollbar-color: #a6a49c transparent;
+    scrollbar-width: thin;
+  }
 }
 
 /* Loading spinner */
@@ -51,4 +152,15 @@
 
 .animate-spin {
   animation: spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

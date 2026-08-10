@@ -5,6 +5,7 @@ not reinterpret work type, route, or outputs after acceptance.
 """
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -22,9 +23,13 @@ from app.services.envelope_validation_service import (  # noqa: E402
     normalize_creative_envelope_inputs,
     EnvelopeValidationService,
 )
+from app.services.task_envelope_v2 import normalize_task_envelope  # noqa: E402
 from app.workers.queue_worker import (  # noqa: E402
     resolve_creative_inputs,
     _looks_like_creative_task,
+    validate_creative_production_plan,
+    persist_agent_production_plan,
+    validate_creative_self_evaluation,
 )
 
 
@@ -114,6 +119,62 @@ def test_locked_profile_preserved_without_media_words() -> None:
     assert resolved.get("render_profile") == "tbtx_social_concepts_v1"
 
 
+def test_explicit_4k_profile_does_not_invent_social_video_sources() -> None:
+    envelope = {
+        "task_id": "4k-art-1",
+        "title": "Render 4K tech art",
+        "goal": "Create one native-resolution hero composition for review",
+        "task_type": "content_prep",
+        "output_required": "One 3840x2160 PNG and responsive WebP image derivatives",
+        "inputs": {
+            "render_profile": "tbtx_4k_tech_art_v1",
+            "creative_prompt": "A deliberately detailed production prompt " * 4,
+        },
+    }
+    out = normalize_creative_envelope_inputs(envelope)
+    assert out["inputs"]["render_profile"] == "tbtx_4k_tech_art_v1"
+    assert out["inputs"].get("source_files") is None
+    assert out["inputs"].get("reference_files") == []
+
+
+def test_explicit_campaign_system_profile_is_preserved() -> None:
+    envelope = {
+        "task_id": "campaign-system-1",
+        "title": "Build the connected campaign proof",
+        "goal": "Prove one idea across web, diagnostic, result, motion, and social outputs.",
+        "task_type": "content_prep",
+        "output_required": "One 15-second 1920x1080 MP4 video with audio, six PNG browser captures, and three PNG social placements",
+        "inputs": {
+            "render_profile": "tbtx_campaign_system_v1",
+            "render_profile_locked": True,
+            "source_files": ["a.mp4", "b.mp4", "material-a.png", "material-b.png"],
+        },
+    }
+    out = normalize_creative_envelope_inputs(envelope)
+    assert out["inputs"]["render_profile"] == "tbtx_campaign_system_v1"
+    assert out["inputs"]["source_files"] == [
+        "a.mp4",
+        "b.mp4",
+        "material-a.png",
+        "material-b.png",
+    ]
+
+
+def test_image_contract_auto_selects_4k_profile() -> None:
+    envelope = {
+        "task_id": "4k-auto-1",
+        "title": "Homepage hero artwork",
+        "goal": "Create a photorealistic, emotionally precise TransformBy10X hero composition for staged review.",
+        "task_type": "content_prep",
+        "output_required": "One native 3840x2160 PNG image plus desktop and mobile WebP derivatives",
+        "inputs": {},
+    }
+    out = normalize_creative_envelope_inputs(envelope)
+    assert out["inputs"]["render_profile"] == "tbtx_4k_tech_art_v1"
+    assert out["inputs"]["creative_prompt"] == envelope["goal"]
+    assert out["inputs"].get("source_files") is None
+
+
 def test_soft_keywords_alone_do_not_force_media() -> None:
     # Critical: intake must not stamp without a true media output contract
     env = {
@@ -143,6 +204,185 @@ def test_owner_from_risk_tier() -> None:
         )
         == "alpha"
     )
+
+
+def test_normalizer_handles_explicit_null_win() -> None:
+    envelope = normalize_task_envelope(
+        {
+            "title": "Null win proof",
+            "instruction": "Prove a null win object cannot crash intake.",
+            "work_class": "healthcheck",
+            "impact_if_wrong": "time",
+            "win": None,
+        }
+    )
+    assert envelope["title"] == "Null win proof"
+    assert envelope["owner_role"] == "beta"
+
+
+def test_normalizer_rejects_missing_title() -> None:
+    with pytest.raises(ValueError, match="title is required"):
+        normalize_task_envelope(
+            {
+                "instruction": "Reject this envelope because it has no title.",
+                "work_class": "healthcheck",
+            }
+        )
+
+
+def test_normalizer_rejects_invalid_task_type() -> None:
+    with pytest.raises(ValueError, match="invalid work_class/task_type"):
+        normalize_task_envelope(
+            {
+                "title": "Invalid task type",
+                "instruction": "Reject an unknown work class instead of coercing it.",
+                "work_class": "invented_work",
+            }
+        )
+
+
+def test_creative_export_enforces_both_canons_campaign_mode_and_human_gate() -> None:
+    envelope = normalize_task_envelope(
+        {
+            "title": "Creative quality proof",
+            "instruction": "Produce one campaign image for staged human review.",
+            "work_class": "creative_export",
+            "impact_if_wrong": "public",
+            "creative": {"campaign": "Creative Execution Standard"},
+        }
+    )
+    v2 = envelope["inputs"]["envelope_v2"]
+    assert v2["creative"]["primary_mode"] == "campaign"
+    assert v2["gates"]["review_required"] is True
+    assert v2["gates"]["publish_allowed"] is False
+    assert v2["scope"]["reference_material"] == [
+        "/app/canon/TBTX_CANON/TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
+        "/app/canon/TBTX_CANON/CREATIVE_EXECUTION_STANDARD.md",
+        "/app/canon/TBTX_CANON/ANTI_SLOP_PROTOCOL.md",
+    ]
+    assert len(v2["acceptance_criteria"]) >= 5
+
+
+def test_creative_mode_conflict_requires_primary_mode() -> None:
+    with pytest.raises(ValueError, match="mixes modes"):
+        normalize_task_envelope(
+            {
+                "title": "Conflicted creative job",
+                "instruction": "Produce one mixed creative export.",
+                "work_class": "creative_export",
+                "creative": {"modes": ["campaign", "brand_system"]},
+            }
+        )
+
+
+def test_creative_self_evaluation_requires_all_passes(tmp_path: Path) -> None:
+    evaluation = tmp_path / "creative-self-evaluation.json"
+    evaluation.write_text(
+        '{"primary_mode":"campaign","canon_files_read":['
+        '"TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",'
+        '"CREATIVE_EXECUTION_STANDARD.md","ANTI_SLOP_PROTOCOL.md"],"categories":{'
+        '"Concept":"PASS","Craft":"PASS","Story":"PASS",'
+        '"Emotion / Curiosity":"PASS","Brand":"PASS"}}',
+        encoding="utf-8",
+    )
+    assert validate_creative_self_evaluation(tmp_path, "campaign") == evaluation
+
+
+def test_creative_production_plan_requires_binding_agent_decisions(tmp_path: Path) -> None:
+    copy_fields = {
+        "homepage_headline": "The system is green. The work is stuck.",
+        "homepage_lede": "Every tool says go while your attention keeps rebuilding the route.",
+        "evidence_line": "The output exists. The ownership doesn't.",
+        "friction_headline": "Fog is the feeling. Friction is the cost.",
+        "friction_body": "Find the break between information and action before adding another tool.",
+        "diagnostic_question": "Where does forward motion break first?",
+        "personal_social_title": "YOUR TABS AREN'T THE PROBLEM.",
+        "personal_social_copy": "The missing route keeps taxing your attention.",
+        "business_social_title": "AI CREATED A JOB. NOBODY WANTED.",
+        "business_social_copy": "Your AI tools didn't remove the work. They reassigned it to you.",
+        "doctrine_social_title": "AUTOMATION CAN'T CARRY MISSING CONTEXT.",
+        "doctrine_social_copy": "Fix what keeps sending the work back.",
+        "motion_scene_one_title": "THE SYSTEM IS GREEN.",
+        "motion_scene_one_copy": "Every tool reports activity.",
+        "motion_scene_two_title": "THE WORK IS STUCK.",
+        "motion_scene_two_copy": "The work keeps coming back.",
+        "motion_scene_three_title": "FIND THE BREAK.",
+        "motion_scene_three_copy": "Diagnose the friction before adding software.",
+    }
+    plan = tmp_path / "creative-production-plan.json"
+    plan.write_text(
+        json.dumps(
+            {
+                "schema": "faas.creative_production_plan",
+                "version": "1.0",
+                "primary_mode": "campaign",
+                "canon_files_read": [
+                    "TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
+                    "CREATIVE_EXECUTION_STANDARD.md",
+                    "ANTI_SLOP_PROTOCOL.md",
+                ],
+                "concept": "The system is green. The work is stuck.",
+                "campaign_thesis": (
+                    "Software reports activity while people absorb the cost of missing "
+                    "context, ownership, and routing."
+                ),
+                "audience_tension": "Visible activity collides with lived immobility.",
+                "visual_system": {
+                    "material_direction": "Optical glass, machined steel, resin, and controlled copper details.",
+                    "composition_logic": "Deep asymmetric frames use physical obstruction and one resolved route.",
+                    "light_behavior": "Warm light moves through the route and stops at the broken connection.",
+                    "source_footage_role": "Footage appears only as subordinate lived-condition evidence.",
+                    "template_rejection": "No logo header, floating dashboard, neon gradient, or SaaS feature grid.",
+                },
+                "copy": copy_fields,
+                "production_actions": [
+                    "Build the interrupted route as the hero object.",
+                    "Keep footage subordinate to the physical system.",
+                    "Use motion to reveal why the work comes back.",
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert validate_creative_production_plan(tmp_path, "campaign") == plan
+
+
+def test_agent_json_response_is_persisted_without_changing_its_decisions(tmp_path: Path) -> None:
+    response_plan = {
+        "schema": "faas.creative_production_plan",
+        "version": "1.0",
+        "primary_mode": "campaign",
+        "concept": "The work came back.",
+    }
+
+    transport = persist_agent_production_plan(
+        tmp_path,
+        {"final": "```json\n" + json.dumps(response_plan) + "\n```"},
+    )
+
+    assert transport == "agent_response_json"
+    assert json.loads((tmp_path / "creative-production-plan.json").read_text()) == response_plan
+
+
+def test_explicit_owner_override_is_recorded_without_weakening_risk_gate() -> None:
+    envelope = normalize_task_envelope(
+        {
+            "title": "Gamma controlled proof",
+            "instruction": "Route this bounded implementation probe through Agent Zero.",
+            "work_class": "implementation",
+            "impact_if_wrong": "time",
+            "preferred_owner": "gamma",
+            "gates": {"review_required": True, "rollback_required": True},
+        }
+    )
+    derived = envelope["inputs"]["envelope_v2"]["derived"]
+    assert envelope["risk_tier"] == "time_loss"
+    assert envelope["owner_role"] == "gamma"
+    assert envelope["review_required"] is True
+    assert derived["risk_owner"] == "beta"
+    assert derived["requested_owner"] == "gamma"
+    assert derived["routing_reason"] == "approved explicit owner override"
+    assert EnvelopeValidationService.validate_business_rules(envelope) == (True, None)
     assert (
         EnvelopeValidationService.determine_owner(
             {"risk_tier": "time_loss", "owner_role": "beta"}

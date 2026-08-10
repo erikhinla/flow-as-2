@@ -10,7 +10,7 @@ from enum import Enum
 from typing import Optional
 from uuid import uuid4
 
-from sqlalchemy import Column, DateTime, Integer, String, Text, Index, create_engine
+from sqlalchemy import Boolean, Column, DateTime, Integer, String, Text, Index, create_engine
 from sqlalchemy.orm import declarative_base
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -29,6 +29,7 @@ class JobStatus(str, Enum):
     DEAD_LETTER = "dead_letter"
     BLOCKED = "blocked"
     ESCALATED = "escalated"
+    DECLINED = "declined"
     ARCHIVED = "archived"
 
 
@@ -84,7 +85,7 @@ class JobRecord(Base):
     owner = Column(String(20), nullable=False)  # openclaw, hermes, agent_zero
     status = Column(String(20), nullable=False, default=JobStatus.PENDING.value, index=True)
     task_type = Column(String(20), nullable=False, index=True)
-    risk_tier = Column(String(10), nullable=False)
+    risk_tier = Column(String(64), nullable=False)
     priority = Column(String(20), nullable=False, default=Priority.NORMAL.value, index=True)
     
     # Timing
@@ -102,6 +103,9 @@ class JobRecord(Base):
     title = Column(String(500), nullable=True)
     goal = Column(Text, nullable=True)
     source = Column(String(50), nullable=True)
+    output_required = Column(Text, nullable=True)
+    inputs = Column(JSONB, nullable=False, default=dict)
+    review_required = Column(Boolean, nullable=False, default=False)
 
     # Retry management
     retry_count = Column(Integer, default=0)

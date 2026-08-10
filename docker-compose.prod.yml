@@ -2,7 +2,7 @@ services:
   bizbrain-lite:
     restart: always
 
-  agent-zero-gamma:
+  flow-agent-zero-worker:
     restart: always
 
   flow-dashboard:

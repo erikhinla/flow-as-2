@@ -1,5 +1,4 @@
 import { apiFetch } from '../lib/api'
-import React from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, AlertCircle, CheckCircle } from 'lucide-react'
 
@@ -35,44 +34,39 @@ export function SystemHealth() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center space-x-2">
-        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-        <span className="text-sm text-gray-500">Checking...</span>
+      <div className="flex items-center gap-2 text-white/55">
+        <div className="h-3 w-3 animate-spin rounded-full border border-flow-accent border-t-transparent"></div>
+        <span className="text-xs">Reading system</span>
       </div>
     )
   }
 
   return (
-    <div className="flex items-center space-x-4">
-      {/* API Health */}
-      <div className="flex items-center space-x-2">
+    <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
+      <div className="hidden items-center gap-1.5 sm:flex">
         {isHealthy ? (
-          <CheckCircle className="w-4 h-4 text-green-500" />
+          <CheckCircle className="h-3.5 w-3.5 text-emerald-400" />
         ) : (
-          <AlertCircle className="w-4 h-4 text-red-500" />
+          <AlertCircle className="h-3.5 w-3.5 text-red-400" />
         )}
-        <span className="text-sm text-gray-600">API</span>
+        <span className="text-xs text-white/55">API</span>
       </div>
 
-      {/* FLOW Health */}
-      <div className="flex items-center space-x-2">
+      <div className="hidden items-center gap-1.5 sm:flex">
         {flowHealthy ? (
-          <Activity className="w-4 h-4 text-green-500" />
+          <Activity className="h-3.5 w-3.5 text-emerald-400" />
         ) : (
-          <AlertCircle className="w-4 h-4 text-red-500" />
+          <AlertCircle className="h-3.5 w-3.5 text-red-400" />
         )}
-        <span className="text-sm text-gray-600">Workers</span>
+        <span className="text-xs text-white/55">Workers</span>
       </div>
 
-      {/* Overall Status */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center gap-2 border-l border-white/10 pl-3">
         <div 
-          className={`w-2 h-2 rounded-full ${
-            isHealthy && flowHealthy ? 'bg-green-500' : 'bg-red-500'
-          } animate-pulse`}
+          className={`h-2 w-2 rounded-full ${isHealthy && flowHealthy ? 'bg-emerald-400' : 'bg-red-400'}`}
         ></div>
-        <span className="text-sm font-medium text-gray-900">
-          {isHealthy && flowHealthy ? 'Operational' : 'Degraded'}
+        <span className="text-xs font-semibold text-white">
+          {isHealthy && flowHealthy ? 'Ready' : 'Needs attention'}
         </span>
       </div>
     </div>

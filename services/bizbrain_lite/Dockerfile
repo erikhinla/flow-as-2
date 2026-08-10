@@ -5,6 +5,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends chromium ffmpeg fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY services/bizbrain_lite/pyproject.toml /app/pyproject.toml
 COPY services/bizbrain_lite/README.md /app/README.md
 COPY services/bizbrain_lite/.env.example /app/.env.example
@@ -12,6 +16,7 @@ COPY services/bizbrain_lite/alembic.ini /app/alembic.ini
 COPY services/bizbrain_lite/app /app/app
 COPY services/bizbrain_lite/docs /app/docs
 COPY scripts /app/scripts
+COPY briefs /app/briefs
 COPY schemas /app/schemas
 COPY alembic /app/alembic
 

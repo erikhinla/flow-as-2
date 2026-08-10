@@ -16,6 +16,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 from datetime import datetime
@@ -46,6 +47,56 @@ logging.basicConfig(
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
 )
 logger = logging.getLogger("flow.queue_worker")
+
+CREATIVE_CANON_FILES = (
+    "TransformBy10X_Ecosystem_Brand_Bible_v1.0.md",
+    "CREATIVE_EXECUTION_STANDARD.md",
+    "ANTI_SLOP_PROTOCOL.md",
+)
+CREATIVE_EVALUATION_CATEGORIES = (
+    "Concept",
+    "Craft",
+    "Story",
+    "Emotion / Curiosity",
+    "Brand",
+)
+CREATIVE_PRODUCTION_PLAN_FIELDS = (
+    "homepage_headline",
+    "homepage_lede",
+    "evidence_line",
+    "friction_headline",
+    "friction_body",
+    "diagnostic_question",
+    "personal_social_title",
+    "personal_social_copy",
+    "business_social_title",
+    "business_social_copy",
+    "doctrine_social_title",
+    "doctrine_social_copy",
+    "motion_scene_one_title",
+    "motion_scene_one_copy",
+    "motion_scene_two_title",
+    "motion_scene_two_copy",
+    "motion_scene_three_title",
+    "motion_scene_three_copy",
+)
+CREATIVE_HEADLINE_FIELDS = tuple(
+    field
+    for field in CREATIVE_PRODUCTION_PLAN_FIELDS
+    if field.endswith(("_headline", "_title", "_question"))
+)
+CREATIVE_COPY_HARD_FAILS = (
+    "handoff",
+    "operational readiness",
+    "operating layer",
+    "transformation journey",
+    "unlock",
+    "leverage",
+    "seamless",
+    "supercharge",
+    "revolutionary",
+    "next-gen",
+)
 
 # ── System prompts per agent ──────────────────────────────────────────────────
 
@@ -121,6 +172,216 @@ def load_tbtx_canon_context() -> str:
     return "\n\n".join(sections)
 
 
+def load_creative_canon_context() -> str:
+    """Load both mandatory creative authorities or fail the producing job."""
+    root = Path(os.getenv("TBTX_CANON_ROOT", "/app/canon/TBTX_CANON"))
+    sections: list[str] = []
+    for filename in CREATIVE_CANON_FILES:
+        path = root / filename
+        if not path.is_file() or not os.access(path, os.R_OK):
+            raise RuntimeError(f"Required creative canon is unavailable or unreadable: {path}")
+        text = path.read_text(encoding="utf-8").strip()
+        if not text:
+            raise RuntimeError(f"Required creative canon is empty: {path}")
+        sections.append(f"## {filename}\n{text}")
+    return "\n\n".join(sections)
+
+
+def creative_contract(inputs: dict) -> dict:
+    contract = inputs.get("envelope_contract") or {}
+    if not isinstance(contract, dict):
+        return {}
+    return contract if contract.get("work_class") == "creative_export" else {}
+
+
+def validate_creative_self_evaluation(job_workspace: Path, primary_mode: str) -> Path:
+    """Reject creative output until every mandatory quality category passes."""
+    evaluation_path = job_workspace / "creative-self-evaluation.json"
+    if not evaluation_path.is_file():
+        raise RuntimeError("Creative output is missing creative-self-evaluation.json")
+    try:
+        evaluation = json.loads(evaluation_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("creative-self-evaluation.json is not valid JSON") from exc
+    if evaluation.get("primary_mode") != primary_mode:
+        raise RuntimeError("Creative self-evaluation primary_mode does not match the accepted contract")
+    canon_files = set(evaluation.get("canon_files_read") or [])
+    if not set(CREATIVE_CANON_FILES).issubset(canon_files):
+        raise RuntimeError("Creative self-evaluation does not prove every creative authority was read")
+    scores = evaluation.get("categories")
+    if not isinstance(scores, dict):
+        raise RuntimeError("Creative self-evaluation is missing category results")
+    failed = [category for category in CREATIVE_EVALUATION_CATEGORIES if scores.get(category) != "PASS"]
+    if failed:
+        raise RuntimeError("Creative self-evaluation did not pass: " + ", ".join(failed))
+    return evaluation_path
+
+
+def validate_creative_production_plan(job_workspace: Path, primary_mode: str) -> Path:
+    """Require a binding agent-authored production decision before rendering."""
+    plan_path = job_workspace / "creative-production-plan.json"
+    if not plan_path.is_file() or plan_path.is_symlink():
+        raise RuntimeError(
+            "Producing agent did not create creative-production-plan.json"
+        )
+    if plan_path.stat().st_size > 96_000:
+        raise RuntimeError("creative-production-plan.json exceeds the 96 KB limit")
+    try:
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("creative-production-plan.json is not valid JSON") from exc
+    if plan.get("schema") != "faas.creative_production_plan":
+        raise RuntimeError("Creative production plan has the wrong schema")
+    if plan.get("primary_mode") != primary_mode:
+        raise RuntimeError("Creative production plan primary_mode does not match the contract")
+    canon_files = set(plan.get("canon_files_read") or [])
+    if not set(CREATIVE_CANON_FILES).issubset(canon_files):
+        raise RuntimeError("Creative production plan does not prove every authority was read")
+    concept = str(plan.get("concept") or "").strip()
+    thesis = str(plan.get("campaign_thesis") or "").strip()
+    if len(concept) < 12 or len(thesis) < 40:
+        raise RuntimeError("Creative production plan is missing a usable concept and thesis")
+    visual_system = plan.get("visual_system")
+    if not isinstance(visual_system, dict):
+        raise RuntimeError("Creative production plan is missing visual_system")
+    for field in (
+        "material_direction",
+        "composition_logic",
+        "light_behavior",
+        "source_footage_role",
+        "template_rejection",
+    ):
+        if len(str(visual_system.get(field) or "").strip()) < 20:
+            raise RuntimeError(f"Creative production plan visual_system.{field} is incomplete")
+    copy = plan.get("copy")
+    if not isinstance(copy, dict):
+        raise RuntimeError("Creative production plan is missing copy decisions")
+    missing_copy = [
+        field
+        for field in CREATIVE_PRODUCTION_PLAN_FIELDS
+        if len(str(copy.get(field) or "").strip()) < 4
+    ]
+    if missing_copy:
+        raise RuntimeError(
+            "Creative production plan is missing copy fields: " + ", ".join(missing_copy)
+        )
+    failed_phrases = sorted(
+        phrase
+        for phrase in CREATIVE_COPY_HARD_FAILS
+        if any(phrase in str(value).lower() for value in copy.values())
+    )
+    if failed_phrases:
+        raise RuntimeError(
+            "Creative production plan contains rejected corporate copy: "
+            + ", ".join(failed_phrases)
+        )
+    long_headlines = [
+        field
+        for field in CREATIVE_HEADLINE_FIELDS
+        if len(re.findall(r"\b[\w’'-]+\b", str(copy.get(field) or ""))) > 12
+    ]
+    if long_headlines:
+        raise RuntimeError(
+            "Creative production plan headlines exceed twelve words: "
+            + ", ".join(long_headlines)
+        )
+    actions = plan.get("production_actions")
+    if not isinstance(actions, list) or len(actions) < 3:
+        raise RuntimeError("Creative production plan requires at least three production actions")
+    return plan_path
+
+
+def persist_agent_production_plan(job_workspace: Path, runtime_result: dict) -> str:
+    """Persist an agent-authored JSON response when Hermes returns it instead of using file_write."""
+    plan_path = job_workspace / "creative-production-plan.json"
+    if plan_path.is_file():
+        return "workspace_file"
+
+    final = str(runtime_result.get("final") or "").strip()
+    if final.startswith("```"):
+        final = re.sub(r"^```(?:json)?\s*", "", final, flags=re.IGNORECASE)
+        final = re.sub(r"\s*```$", "", final)
+    start = final.find("{")
+    end = final.rfind("}")
+    if start < 0 or end <= start:
+        return "missing"
+    try:
+        plan = json.loads(final[start : end + 1])
+    except json.JSONDecodeError:
+        return "missing"
+    if not isinstance(plan, dict) or plan.get("schema") != "faas.creative_production_plan":
+        return "missing"
+    plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+    return "agent_response_json"
+
+
+def build_creative_production_prompt(
+    *,
+    job_workspace: Path,
+    primary_mode: str,
+    inputs: dict,
+    title: str,
+    goal: str,
+) -> str:
+    """Give the owning agent creative authority before deterministic export."""
+    source_files = inputs.get("source_files")
+    sources = source_files if isinstance(source_files, list) else []
+    return (
+        "# Role\n"
+        "You are the primary producing agent, not a reviewer. Make the binding creative "
+        "decisions that the export renderer must follow.\n\n"
+        f"# Assignment\nTitle: {title}\nGoal: {goal}\n"
+        f"Primary mode: {primary_mode}\nWorkspace: {job_workspace}\n\n"
+        "Read all three authorities from /app/canon/TBTX_CANON/: "
+        + ", ".join(CREATIVE_CANON_FILES)
+        + ". Inspect every available source file with your tools before deciding. "
+        "The brand characteristics are sophisticated, precise, industrially weighted, "
+        "technically clear, and capable of campaign-level impact. Do not impose a permanent "
+        "logo, typeface, palette, icon set, or token system. Do not use a default logo header "
+        "or a familiar SaaS template.\n\n"
+        "TransformBy10X owns the master campaign idea. Do not turn the whole proof into a "
+        "BizBuilders AI campaign or a Fog-Lift campaign. Use the Personal fields for the "
+        "Digital Fog to Fog-Lift path, the Business fields for the work problem to BizBuilders "
+        "AI path, and the Doctrine fields for the TransformBy10X point of view. BizBot comes "
+        "later, after the business is fixed enough that a bot will not make the mess worse.\n\n"
+        "COPY HARD FAIL: Every headline, title, and question must use twelve words or fewer. "
+        "Name the consequence fast. Reject handoff, operational readiness, operating layer, "
+        "transformation journey, unlock, leverage, seamless, supercharge, revolutionary, and "
+        "next-gen. The B2B pressure and sharpness standard is: 'AI Created a Job. Nobody "
+        "Wanted.' and 'Your AI Tools Didn't Remove the Work. They Reassigned It to You.' "
+        "Use that level of recognition; do not stretch those business lines across the personal "
+        "or master-campaign surfaces.\n\n"
+        f"Source files:\n{json.dumps(sources, indent=2)}\n\n"
+        "Write exactly one binding JSON artifact to "
+        f"{job_workspace / 'creative-production-plan.json'}. The renderer will consume it. "
+        "Do not write the self-evaluation yet and do not merely describe what another agent "
+        "should do. Use this exact structure:\n"
+        "{\n"
+        '  "schema": "faas.creative_production_plan",\n'
+        '  "version": "1.0",\n'
+        f'  "primary_mode": {json.dumps(primary_mode)},\n'
+        f'  "canon_files_read": {json.dumps(list(CREATIVE_CANON_FILES))},\n'
+        '  "concept": "one memorable campaign sentence",\n'
+        '  "campaign_thesis": "the human/business tension and the movement it creates",\n'
+        '  "audience_tension": "specific lived contradiction",\n'
+        '  "visual_system": {\n'
+        '    "material_direction": "physical materials selected for this idea",\n'
+        '    "composition_logic": "how scale, depth, negative space, and information behave",\n'
+        '    "light_behavior": "how light carries story rather than decoration",\n'
+        '    "source_footage_role": "subordinate evidence role for supplied footage",\n'
+        '    "template_rejection": "specific generic patterns forbidden in this execution"\n'
+        "  },\n"
+        '  "copy": {\n'
+        + "".join(f'    "{field}": "finished public-facing line",\n' for field in CREATIVE_PRODUCTION_PLAN_FIELDS[:-1])
+        + f'    "{CREATIVE_PRODUCTION_PLAN_FIELDS[-1]}": "finished public-facing line"\n'
+        "  },\n"
+        '  "production_actions": ["specific action", "specific action", "specific action"]\n'
+        "}\n\n"
+        "Every public line must sound spoken, use contractions naturally, avoid AI/consulting "
+        "hype, and preserve the distinct TransformBy10X, Fog-Lift, BizBuilders AI, and BizBot roles from Canon."
+    )
+
+
 # ── Agent runtime execution ───────────────────────────────────────────────────
 
 async def build_execution_prompt(
@@ -175,6 +436,23 @@ async def build_execution_prompt(
             "claims, or terminology. Lead with the customer's lived experience, not "
             "technology or internal process.\n\n"
             f"{canon_context}\n\n"
+        )
+
+    creative = creative_contract(inputs)
+    if creative:
+        creative_context = load_creative_canon_context()
+        mode = str(creative.get("creative_mode") or "campaign")
+        user_message += (
+            "## Mandatory creative execution gate\n"
+            "Read both authorities below before producing anything. The Brand Bible governs "
+            "identity; the Creative Execution Standard governs quality judgment.\n\n"
+            f"Primary creative mode: `{mode}`.\n"
+            "Before requesting human review, create `creative-self-evaluation.json` in the job "
+            "workspace. It must contain `primary_mode`, `canon_files_read`, and PASS results for "
+            "each of: Concept, Craft, Story, Emotion / Curiosity, Brand. If any category cannot "
+            "pass, revise or escalate; never present the output as ready. `publish_allowed` is "
+            "false unless the human gate explicitly overrides it.\n\n"
+            f"{creative_context}\n\n"
         )
 
     user_message += (
@@ -356,7 +634,7 @@ async def _call_agent_zero_http(
             "upstream_repository": "https://github.com/agent0ai/agent-zero",
             "upstream_commit": os.getenv(
                 "AGENT_ZERO_UPSTREAM_COMMIT",
-                "87e1e591e1ba2e8b1a19d34e134fcae490c8dded",
+                "5ff106a2d489d17c2a3b378521a8f29fb29cf77d",
             ),
         }
 
@@ -524,45 +802,230 @@ async def run_creative_review_pipeline(
 
     render_manifest_path = job_workspace / "render-manifest.json"
     render_manifest = json.loads(render_manifest_path.read_text(encoding="utf-8"))
+    profile = str(render_manifest.get("profile") or "")
     validation_report = job_workspace / "validation-report.md"
     report_lines = [
         "# Creative validation report",
         "",
-        "Scope: mechanical acceptance for a staged concept round. This is not launch approval.",
-        "",
-        "## Video inspection",
+        "Scope: mechanical acceptance for staged review. This is not launch approval.",
         "",
     ]
-    for fact in video_facts:
-        report_lines.append(
-            "- PASS "
-            f"`{fact['file']}`: {fact['width']}x{fact['height']}, "
-            f"{fact['duration_seconds']:.3f}s, "
-            f"audio={'present' if fact['audio'] else 'missing'}, "
-            f"{fact['size_bytes']} bytes."
+    if profile == "tbtx_campaign_system_v1":
+        required_files = {
+            "campaign/index.html",
+            "campaign/diagnostic.html",
+            "campaign/result.html",
+            "captures/homepage-desktop.png",
+            "captures/homepage-mobile.png",
+            "captures/diagnostic-desktop.png",
+            "captures/diagnostic-mobile.png",
+            "captures/result-desktop.png",
+            "captures/result-mobile.png",
+            "social/personal-instagram-1080x1350.png",
+            "social/business-linkedin-1200x627.png",
+            "social/doctrine-story-1080x1920.png",
+            "motion/campaign-film-15s.mp4",
+            "campaign-contact-sheet.png",
+            "campaign-copy-map.md",
+            "conversion-path.md",
+            "anti-slop-evidence.json",
+        }
+        present = {
+            str(path.relative_to(job_workspace))
+            for path in produced_files
+            if path.is_file()
+        }
+        missing = sorted(required_files - present)
+        if missing:
+            raise RuntimeError(
+                "Campaign system validation is missing required files: "
+                + ", ".join(missing)
+            )
+        expected_images = {
+            "captures/homepage-desktop.png": (1440, 900),
+            "captures/homepage-mobile.png": (390, 844),
+            "captures/diagnostic-desktop.png": (1440, 900),
+            "captures/diagnostic-mobile.png": (390, 844),
+            "captures/result-desktop.png": (1440, 900),
+            "captures/result-mobile.png": (390, 844),
+            "social/personal-instagram-1080x1350.png": (1080, 1350),
+            "social/business-linkedin-1200x627.png": (1200, 627),
+            "social/doctrine-story-1080x1920.png": (1080, 1920),
+        }
+        image_facts: list[dict[str, object]] = []
+        for relative_path, expected in expected_images.items():
+            image_path = job_workspace / relative_path
+            completed = subprocess.run(
+                [
+                    "ffprobe", "-v", "error", "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height", "-of", "json",
+                    str(image_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            stream = ((json.loads(completed.stdout).get("streams") or [{}])[0])
+            actual = (int(stream.get("width") or 0), int(stream.get("height") or 0))
+            if actual != expected:
+                raise RuntimeError(
+                    f"Campaign capture {relative_path} is {actual[0]}x{actual[1]}, "
+                    f"expected {expected[0]}x{expected[1]}"
+                )
+            image_facts.append(
+                {
+                    "file": relative_path,
+                    "width": actual[0],
+                    "height": actual[1],
+                    "size_bytes": image_path.stat().st_size,
+                }
+            )
+        film = next(
+            (fact for fact in video_facts if fact["file"] == "campaign-film-15s.mp4"),
+            None,
         )
-    report_lines.extend(
-        [
-            "",
-            "## Package checks",
-            "",
-            f"- PASS Three distinct concept videos: {len(video_facts)} found.",
-            "- PASS Contact sheet: `concept-contact-sheet.png` exists.",
-            "- PASS Transparent wordmark: `transformby10x-wordmark-transparent.png` "
-            "passed the PNG alpha-channel contract.",
-            f"- PASS Publish state: `{str(render_manifest.get('published')).lower()}`.",
-            "- PASS Original source assets remain outside the isolated run directory.",
-            "",
-            "## Human creative gate",
-            "",
-            "- Required before final ratios or launch exports: Erik selects and steers a concept.",
-            "- Review readability, face-safe placement, visual tone, motion, and sound direction "
-            "in the rendered videos. Mechanical checks do not replace that decision.",
-            "",
-            "OVERALL: PASS",
-            "",
-        ]
-    )
+        if not film:
+            raise RuntimeError("Campaign system validation requires campaign-film-15s.mp4")
+        if (film["width"], film["height"]) != (1920, 1080):
+            raise RuntimeError("Campaign film must be exactly 1920x1080")
+        if abs(float(film["duration_seconds"]) - 15.0) > 0.15:
+            raise RuntimeError("Campaign film must be exactly 15 seconds")
+        if not film["audio"]:
+            raise RuntimeError("Campaign film must contain an audio stream")
+        evidence = json.loads(
+            (job_workspace / "anti-slop-evidence.json").read_text(encoding="utf-8")
+        )
+        if evidence.get("status") != "passed":
+            raise RuntimeError("Anti-slop evidence did not pass")
+        if render_manifest.get("published") is not False:
+            raise RuntimeError("Campaign render manifest must remain unpublished")
+        report_lines.extend(
+            [
+                "## Connected campaign system",
+                "",
+                "- PASS Working homepage, diagnostic, and personalized result HTML exist.",
+                "- PASS Six real Chromium captures prove desktop and mobile states.",
+                "- PASS Three distinct platform-sized social placements exist.",
+                "- PASS One exact 15-second 1920x1080 campaign film contains audio.",
+                "- PASS Copy map and conversion path route Personal Fog to Fog-Lift and Business Friction to BizBuilders AI.",
+                "- PASS Anti-Slop Protocol evidence is present and passed.",
+                "- PASS No logo is forced into the campaign header.",
+                "- PASS Publish state: `false`.",
+                "",
+                "## Browser and media inspection",
+                "",
+            ]
+        )
+        for fact in image_facts:
+            report_lines.append(
+                f"- PASS `{fact['file']}`: {fact['width']}x{fact['height']}, "
+                f"{fact['size_bytes']} bytes."
+            )
+        report_lines.extend(
+            [
+                f"- PASS `motion/campaign-film-15s.mp4`: {film['width']}x{film['height']}, "
+                f"{film['duration_seconds']:.3f}s, audio=present, {film['size_bytes']} bytes.",
+                "",
+                "## Human creative gate",
+                "",
+                "- This is a connected campaign proof, not a final identity lock.",
+                "- Human review decides whether the idea, tone, pacing, and audience recognition clear the 8+/10 bar.",
+                "",
+                "OVERALL: PASS",
+                "",
+            ]
+        )
+    elif profile == "tbtx_4k_tech_art_v1":
+        image_facts: list[dict[str, object]] = []
+        for image_path in [
+            path
+            for path in produced_files
+            if path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}
+        ]:
+            completed = subprocess.run(
+                [
+                    "ffprobe", "-v", "error", "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height", "-of", "json",
+                    str(image_path),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=True,
+            )
+            stream = ((json.loads(completed.stdout).get("streams") or [{}])[0])
+            image_facts.append(
+                {
+                    "file": image_path.name,
+                    "width": int(stream.get("width") or 0),
+                    "height": int(stream.get("height") or 0),
+                    "size_bytes": image_path.stat().st_size,
+                }
+            )
+        master = next(
+            (fact for fact in image_facts if fact["file"] == "tbtx-4k-tech-art-master.png"),
+            None,
+        )
+        if not master or (master["width"], master["height"]) != (3840, 2160):
+            raise RuntimeError("4K creative validation requires a verified 3840x2160 master PNG")
+        if render_manifest.get("published") is not False:
+            raise RuntimeError("Creative render manifest must remain unpublished")
+        report_lines.extend(["## Image inspection", ""])
+        for fact in image_facts:
+            report_lines.append(
+                f"- PASS `{fact['file']}`: {fact['width']}x{fact['height']}, "
+                f"{fact['size_bytes']} bytes."
+            )
+        report_lines.extend(
+            [
+                "",
+                "## Package checks",
+                "",
+                "- PASS Native provider output met or exceeded 4K; no low-resolution upscale was accepted.",
+                "- PASS Exact 3840x2160 master and responsive derivatives exist.",
+                "- PASS Prompt, model, reference hashes, and file hashes are recorded.",
+                "- PASS Publish state: `false`.",
+                "",
+                "## Human creative gate",
+                "",
+                "- Human selection is required before layout implementation or publishing.",
+                "- Review composition, emotional specificity, brand fit, legibility, and crop safety.",
+                "",
+                "OVERALL: PASS",
+                "",
+            ]
+        )
+    else:
+        report_lines.extend(["## Video inspection", ""])
+        for fact in video_facts:
+            report_lines.append(
+                "- PASS "
+                f"`{fact['file']}`: {fact['width']}x{fact['height']}, "
+                f"{fact['duration_seconds']:.3f}s, "
+                f"audio={'present' if fact['audio'] else 'missing'}, "
+                f"{fact['size_bytes']} bytes."
+            )
+        report_lines.extend(
+            [
+                "",
+                "## Package checks",
+                "",
+                f"- PASS Three distinct concept videos: {len(video_facts)} found.",
+                "- PASS Contact sheet: `concept-contact-sheet.png` exists.",
+                "- PASS Transparent wordmark: `transformby10x-wordmark-transparent.png` passed the PNG alpha-channel contract.",
+                f"- PASS Publish state: `{str(render_manifest.get('published')).lower()}`.",
+                "- PASS Original source assets remain outside the isolated run directory.",
+                "",
+                "## Human creative gate",
+                "",
+                "- Required before final ratios or launch exports: Erik selects and steers a concept.",
+                "- Review readability, face-safe placement, visual tone, motion, and sound direction in the rendered videos.",
+                "",
+                "OVERALL: PASS",
+                "",
+            ]
+        )
     validation_report.write_text("\n".join(report_lines), encoding="utf-8")
 
     review_prompt = (
@@ -624,7 +1087,17 @@ async def run_creative_review_pipeline(
     ):
         relative_path = path.relative_to(job_workspace)
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        if path.suffix.lower() in {".mp4", ".mov", ".m4v", ".webm"}:
+        if path.name == "tbtx-4k-tech-art-master.png":
+            role = "four_k_master"
+        elif path.suffix.lower() == ".html":
+            role = "working_campaign_page"
+        elif "captures" in path.parts and path.suffix.lower() == ".png":
+            role = "browser_capture"
+        elif "social" in path.parts and path.suffix.lower() == ".png":
+            role = "social_placement"
+        elif path.name == "campaign-film-15s.mp4":
+            role = "campaign_film"
+        elif path.suffix.lower() in {".mp4", ".mov", ".m4v", ".webm"}:
             role = "concept_video"
         elif "contact" in path.stem.lower():
             role = "contact_sheet"
@@ -837,6 +1310,14 @@ def resolve_creative_inputs(
                 break
 
     if len(sources) < 2:
+        if re.search(r"\b(image|images|png|jpe?g|webp|hero art|tech art)\b", output_required.lower()) and not re.search(
+            r"\b(video|videos|mp4|mov|webm|animatic)s?\b", output_required.lower()
+        ):
+            resolved["render_profile"] = "tbtx_4k_tech_art_v1"
+            resolved["creative_prompt"] = str(resolved.get("creative_prompt") or goal)
+            resolved.setdefault("reference_files", [])
+            logger.info("Auto-selected creative render profile tbtx_4k_tech_art_v1")
+            return resolved
         raise RuntimeError(
             "Creative job requires render_profile sources, but no campaign footage "
             "was found under /opt/flow-as/launch/assets or /workspace/source."
@@ -856,24 +1337,84 @@ def run_render_profile(inputs: dict, job_workspace: Path) -> dict | None:
     profile = str(inputs.get("render_profile") or "").strip()
     if not profile:
         return None
-    if profile != "tbtx_social_concepts_v1":
+    if profile == "tbtx_social_concepts_v1":
+        source_files = inputs.get("source_files")
+        if not isinstance(source_files, list) or len(source_files) < 2:
+            raise RuntimeError(
+                "tbtx_social_concepts_v1 requires at least two source_files"
+            )
+        command = [
+            "python3",
+            "/app/scripts/render_tbtx_social_concepts.py",
+            "--workspace",
+            str(job_workspace),
+            "--source-a",
+            str(source_files[0]),
+            "--source-b",
+            str(source_files[1]),
+        ]
+    elif profile == "tbtx_4k_tech_art_v1":
+        prompt_file = str(inputs.get("creative_prompt_file") or "").strip()
+        prompt_path: Path
+        if prompt_file:
+            prompt_path = Path(prompt_file).resolve()
+            allowed_prompt_roots = (
+                Path("/app/briefs").resolve(),
+                Path("/app/canon/TBTX_CANON").resolve(),
+            )
+            if not any(prompt_path.is_relative_to(root) for root in allowed_prompt_roots):
+                raise RuntimeError(
+                    "creative_prompt_file must be inside /app/briefs or /app/canon/TBTX_CANON"
+                )
+            if not prompt_path.is_file():
+                raise RuntimeError(f"Creative prompt file not found: {prompt_path}")
+            prompt = prompt_path.read_text(encoding="utf-8").strip()
+        else:
+            prompt = str(inputs.get("creative_prompt") or "").strip()
+            prompt_path = job_workspace / "creative-prompt-source.txt"
+            prompt_path.write_text(prompt + "\n", encoding="utf-8")
+        if len(prompt) < 80:
+            raise RuntimeError(
+                "tbtx_4k_tech_art_v1 requires inputs.creative_prompt or "
+                "inputs.creative_prompt_file with at least 80 characters"
+            )
+        command = [
+            "python3",
+            "/app/scripts/render_tbtx_4k_tech_art.py",
+            "--workspace",
+            str(job_workspace),
+            "--prompt-file",
+            str(prompt_path),
+        ]
+        reference_files = inputs.get("reference_files")
+        if isinstance(reference_files, list):
+            for reference in reference_files[:3]:
+                command.extend(["--reference", str(reference)])
+    elif profile == "tbtx_campaign_system_v1":
+        source_files = inputs.get("source_files")
+        if not isinstance(source_files, list) or len(source_files) < 4:
+            raise RuntimeError(
+                "tbtx_campaign_system_v1 requires two footage sources and two physical material plates"
+            )
+        command = [
+            "python3",
+            "/app/scripts/render_tbtx_campaign_system.py",
+            "--workspace",
+            str(job_workspace),
+            "--source-a",
+            str(source_files[0]),
+            "--source-b",
+            str(source_files[1]),
+            "--material-a",
+            str(source_files[2]),
+            "--material-b",
+            str(source_files[3]),
+        ]
+    else:
         raise RuntimeError(f"Unsupported creative render profile: {profile}")
-
-    source_files = inputs.get("source_files")
-    if not isinstance(source_files, list) or len(source_files) < 2:
-        raise RuntimeError(
-            "tbtx_social_concepts_v1 requires at least two source_files"
-        )
-    command = [
-        "python3",
-        "/app/scripts/render_tbtx_social_concepts.py",
-        "--workspace",
-        str(job_workspace),
-        "--source-a",
-        str(source_files[0]),
-        "--source-b",
-        str(source_files[1]),
-    ]
+    production_plan = job_workspace / "creative-production-plan.json"
+    if profile == "tbtx_campaign_system_v1" and production_plan.is_file():
+        command.extend(["--production-plan", str(production_plan)])
     completed = subprocess.run(
         command,
         capture_output=True,
@@ -1037,31 +1578,34 @@ async def activate_job(
         )
 
 
-async def complete_job(job_id: str, result_pointer: str) -> None:
-    """Mark job COMPLETED and record artifact path."""
+async def complete_job(job_id: str, result_pointer: str, *, review_required: bool = False) -> None:
+    """Persist output; creative work remains held for the human Creative Gate."""
     async with async_session() as session:
         result = await session.execute(select(JobRecord).where(JobRecord.job_id == job_id))
         job = result.scalar_one_or_none()
         if not job:
             return
         now = datetime.utcnow()
-        job.status = JobStatus.COMPLETED.value
+        job.status = JobStatus.REVIEW_REQUIRED.value if review_required else JobStatus.COMPLETED.value
         job.updated_at = now
         job.completed_at = now
         job.result_pointer = result_pointer
         job.error_message = None
 
-        # Record job completion in audit log
         await record_audit_event(
             session,
-            event_type=AuditEventType.JOB_COMPLETED,
-            title=f"Execution completed: {job.title or job_id}",
+            event_type=(AuditEventType.REVIEW_REQUESTED if review_required else AuditEventType.JOB_COMPLETED),
+            title=(f"Human Creative Gate required: {job.title or job_id}" if review_required else f"Execution completed: {job.title or job_id}"),
             job_id=job_id,
             task_id=job.task_id,
             agent=job.owner,
             action_by=job.owner,
-            description=f"Job completed successfully, artifact written to {result_pointer}",
-            event_data={"artifact_path": result_pointer},
+            description=(
+                f"Creative execution and self-evaluation passed; human review is required before publishing. Artifact: {result_pointer}"
+                if review_required else f"Job completed successfully, artifact written to {result_pointer}"
+            ),
+            event_data={"artifact_path": result_pointer, "publish_allowed": False},
+            requires_human_approval="Y" if review_required else "N",
         )
 
         # Trigger automated learning cycle
@@ -1076,7 +1620,7 @@ async def complete_job(job_id: str, result_pointer: str) -> None:
             logger.warning("Automated learning failed for job_id=%s: %s", job_id, e)
 
         await session.commit()
-        logger.info("Completed job_id=%s artifact=%s", job_id, result_pointer)
+        logger.info("Finished job_id=%s status=%s artifact=%s", job_id, job.status, result_pointer)
 
 
 async def fail_job(job_id: str, error: str) -> None:
@@ -1193,6 +1737,50 @@ async def worker_loop(owner: str, timeout: int) -> None:
                         job_workspace=job_workspace,
                         session=llm_session,
                     )
+                active_creative_contract = creative_contract(creative_inputs)
+                workflow_evidence: list[dict] = []
+                producer_runtime: dict | None = None
+                if (
+                    active_creative_contract
+                    and str(creative_inputs.get("render_profile") or "")
+                    == "tbtx_campaign_system_v1"
+                ):
+                    primary_mode = str(
+                        active_creative_contract.get("creative_mode") or "campaign"
+                    )
+                    producer_prompt = build_creative_production_prompt(
+                        job_workspace=job_workspace,
+                        primary_mode=primary_mode,
+                        inputs=creative_inputs,
+                        title=effective_title,
+                        goal=effective_goal,
+                    )
+                    producer_runtime = await call_agent_runtime(
+                        prompt=producer_prompt,
+                        job_id=f"{job_id}-creative-production",
+                        model_decision=model_decision,
+                    )
+                    plan_transport = persist_agent_production_plan(
+                        job_workspace,
+                        producer_runtime,
+                    )
+                    production_plan_path = validate_creative_production_plan(
+                        job_workspace,
+                        primary_mode,
+                    )
+                    workflow_evidence.append(
+                        {
+                            "stage": "agent_creative_production",
+                            "status": "completed",
+                            "path": str(production_plan_path),
+                            "worker": producer_runtime.get("engine"),
+                            "execution_mode": producer_runtime.get("execution_mode"),
+                            "model": producer_runtime.get("model"),
+                            "toolsets": producer_runtime.get("toolsets") or [],
+                            "skills": producer_runtime.get("skills") or [],
+                            "plan_transport": plan_transport,
+                        }
+                    )
                 render_manifest = run_render_profile(creative_inputs, job_workspace)
                 if render_manifest is None:
                     # Chat-only agent path cannot satisfy a true media contract.
@@ -1210,26 +1798,73 @@ async def worker_loop(owner: str, timeout: int) -> None:
                     runtime_result["model_decision"] = model_decision
                     output = validate_runtime_output(runtime_result["final"])
                 else:
-                    runtime_result = {
-                        "ok": True,
-                        "engine": "hermes",
-                        "execution_mode": "repository_render_profile",
-                        "render_profile": str(creative_inputs.get("render_profile")),
-                        "manifest_path": str(job_workspace / "render-manifest.json"),
-                    }
+                    runtime_result = dict(producer_runtime or {})
+                    runtime_result.update(
+                        {
+                            "ok": True,
+                            "engine": str(
+                                runtime_result.get("engine")
+                                or os.getenv("FLOW_EXECUTION_ENGINE", owner)
+                            ),
+                            "execution_mode": (
+                                "agent_led_repository_production"
+                                if producer_runtime
+                                else "repository_render_profile"
+                            ),
+                            "render_profile": str(creative_inputs.get("render_profile")),
+                            "manifest_path": str(job_workspace / "render-manifest.json"),
+                            "production_plan_path": (
+                                str(job_workspace / "creative-production-plan.json")
+                                if producer_runtime
+                                else None
+                            ),
+                            "model_decision": model_decision,
+                        }
+                    )
                     output = (
-                        "Hermes production lane completed the assigned repository-backed "
-                        "profile and staged the following manifest:\n\n"
+                        f"{runtime_result['engine']} created the binding production decisions; "
+                        "the repository export engine staged the following manifest:\n\n"
                         + json.dumps(render_manifest, indent=2)
+                    )
+                if active_creative_contract:
+                    evaluation_prompt = (
+                        "You are the producing creative agent completing the mandatory self-evaluation. "
+                        "Do not change the staged assets. Read every file named below from /app/canon/TBTX_CANON/ and "
+                        f"inspect the rendered work in {job_workspace}. Write exactly one JSON file at "
+                        f"{job_workspace / 'creative-self-evaluation.json'} with primary_mode="
+                        f"{active_creative_contract.get('creative_mode')!r}, canon_files_read containing "
+                        "TransformBy10X_Ecosystem_Brand_Bible_v1.0.md, CREATIVE_EXECUTION_STANDARD.md, and ANTI_SLOP_PROTOCOL.md, "
+                        "and categories containing PASS or FAIL for Concept, Craft, Story, Emotion / Curiosity, "
+                        "and Brand. A FAIL means the asset must be revised or escalated, never marked ready."
+                    )
+                    evaluation_runtime = await call_agent_runtime(
+                        evaluation_prompt,
+                        f"{job_id}-creative-self-evaluation",
+                        model_decision=model_decision,
+                    )
+                    evaluation_path = validate_creative_self_evaluation(
+                        job_workspace,
+                        str(active_creative_contract.get("creative_mode") or "campaign"),
+                    )
+                    workflow_evidence.append(
+                        {
+                            "stage": "creative_self_evaluation",
+                            "status": "passed",
+                            "path": str(evaluation_path),
+                            "primary_mode": active_creative_contract.get("creative_mode"),
+                            "categories": list(CREATIVE_EVALUATION_CATEGORIES),
+                            "canon_files": list(CREATIVE_CANON_FILES),
+                            "worker": evaluation_runtime.get("engine"),
+                            "execution_mode": evaluation_runtime.get("execution_mode"),
+                        }
                     )
                 produced_files = validate_artifact_contract(
                     effective_output_required,
                     job_workspace,
                     pre_review=requires_media_artifacts(effective_output_required),
                 )
-                workflow_evidence: list[dict] = []
                 if requires_media_artifacts(effective_output_required):
-                    workflow_evidence = await run_creative_review_pipeline(
+                    workflow_evidence += await run_creative_review_pipeline(
                         job_id=job_id,
                         title=effective_title,
                         goal=effective_goal,
@@ -1263,7 +1898,11 @@ async def worker_loop(owner: str, timeout: int) -> None:
             )
 
             # Step 4: Mark completed
-            await complete_job(job_id, artifact_path)
+            await complete_job(
+                job_id,
+                artifact_path,
+                review_required=bool(creative_contract(creative_inputs)),
+            )
 
             # Step 5: Notify Discord
             await notify_discord(

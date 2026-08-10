@@ -12,6 +12,7 @@ All operations are async/await compatible.
 """
 
 import logging
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 import json
 
@@ -34,11 +35,11 @@ class RedisQueueService:
     QUEUE_PREFIX = "flow"
     
     # Owner queue names
-    OPENCLAW_QUEUE = f"{QUEUE_PREFIX}:openclaw:jobs"
-    HERMES_QUEUE = f"{QUEUE_PREFIX}:hermes:jobs"
-    AGENT_ZERO_QUEUE = f"{QUEUE_PREFIX}:agent_zero:jobs"
+    ALPHA_QUEUE = f"{QUEUE_PREFIX}:alpha:jobs"
+    BETA_QUEUE = f"{QUEUE_PREFIX}:beta:jobs"
+    GAMMA_QUEUE = f"{QUEUE_PREFIX}:gamma:jobs"
     
-    ALL_QUEUES = [OPENCLAW_QUEUE, HERMES_QUEUE, AGENT_ZERO_QUEUE]
+    ALL_QUEUES = [ALPHA_QUEUE, BETA_QUEUE, GAMMA_QUEUE]
     
     # DLQ (dead-letter queue) for failed jobs
     DLQ_QUEUE = f"{QUEUE_PREFIX}:dead_letter"
@@ -125,6 +126,17 @@ class RedisQueueService:
         except Exception as e:
             logger.error(f"Error getting queue depth for {owner}: {e}")
             return 0
+
+    async def remove_job(self, owner: str, job_id: str) -> int:
+        """Remove every queued copy of one job without disturbing other work."""
+        try:
+            queue_name = self.get_queue_name(owner)
+            removed = await self.redis.lrem(queue_name, 0, job_id)
+            logger.info("Removed %s queued copies of job %s from %s", removed, job_id, queue_name)
+            return int(removed or 0)
+        except Exception as exc:
+            logger.error("Error removing job %s from %s queue: %s", job_id, owner, exc)
+            return 0
     
     async def get_all_queue_depths(self) -> Dict[str, int]:
         """
@@ -135,7 +147,7 @@ class RedisQueueService:
         """
         
         depths = {}
-        for owner in ['openclaw', 'hermes', 'agent_zero']:
+        for owner in ['alpha', 'beta', 'gamma']:
             depths[owner] = await self.get_queue_depth(owner)
         return depths
     
