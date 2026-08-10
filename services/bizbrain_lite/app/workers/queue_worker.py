@@ -291,6 +291,30 @@ def validate_creative_production_plan(job_workspace: Path, primary_mode: str) ->
     return plan_path
 
 
+def persist_agent_production_plan(job_workspace: Path, runtime_result: dict) -> str:
+    """Persist an agent-authored JSON response when Hermes returns it instead of using file_write."""
+    plan_path = job_workspace / "creative-production-plan.json"
+    if plan_path.is_file():
+        return "workspace_file"
+
+    final = str(runtime_result.get("final") or "").strip()
+    if final.startswith("```"):
+        final = re.sub(r"^```(?:json)?\s*", "", final, flags=re.IGNORECASE)
+        final = re.sub(r"\s*```$", "", final)
+    start = final.find("{")
+    end = final.rfind("}")
+    if start < 0 or end <= start:
+        return "missing"
+    try:
+        plan = json.loads(final[start : end + 1])
+    except json.JSONDecodeError:
+        return "missing"
+    if not isinstance(plan, dict) or plan.get("schema") != "faas.creative_production_plan":
+        return "missing"
+    plan_path.write_text(json.dumps(plan, indent=2) + "\n", encoding="utf-8")
+    return "agent_response_json"
+
+
 def build_creative_production_prompt(
     *,
     job_workspace: Path,
@@ -1736,6 +1760,10 @@ async def worker_loop(owner: str, timeout: int) -> None:
                         job_id=f"{job_id}-creative-production",
                         model_decision=model_decision,
                     )
+                    plan_transport = persist_agent_production_plan(
+                        job_workspace,
+                        producer_runtime,
+                    )
                     production_plan_path = validate_creative_production_plan(
                         job_workspace,
                         primary_mode,
@@ -1750,6 +1778,7 @@ async def worker_loop(owner: str, timeout: int) -> None:
                             "model": producer_runtime.get("model"),
                             "toolsets": producer_runtime.get("toolsets") or [],
                             "skills": producer_runtime.get("skills") or [],
+                            "plan_transport": plan_transport,
                         }
                     )
                 render_manifest = run_render_profile(creative_inputs, job_workspace)

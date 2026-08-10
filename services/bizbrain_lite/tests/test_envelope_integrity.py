@@ -28,6 +28,7 @@ from app.workers.queue_worker import (  # noqa: E402
     resolve_creative_inputs,
     _looks_like_creative_task,
     validate_creative_production_plan,
+    persist_agent_production_plan,
     validate_creative_self_evaluation,
 )
 
@@ -344,6 +345,23 @@ def test_creative_production_plan_requires_binding_agent_decisions(tmp_path: Pat
         encoding="utf-8",
     )
     assert validate_creative_production_plan(tmp_path, "campaign") == plan
+
+
+def test_agent_json_response_is_persisted_without_changing_its_decisions(tmp_path: Path) -> None:
+    response_plan = {
+        "schema": "faas.creative_production_plan",
+        "version": "1.0",
+        "primary_mode": "campaign",
+        "concept": "The work came back.",
+    }
+
+    transport = persist_agent_production_plan(
+        tmp_path,
+        {"final": "```json\n" + json.dumps(response_plan) + "\n```"},
+    )
+
+    assert transport == "agent_response_json"
+    assert json.loads((tmp_path / "creative-production-plan.json").read_text()) == response_plan
 
 
 def test_explicit_owner_override_is_recorded_without_weakening_risk_gate() -> None:
