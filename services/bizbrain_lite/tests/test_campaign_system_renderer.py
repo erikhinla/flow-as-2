@@ -50,19 +50,19 @@ def test_agent_production_plan_changes_campaign_surfaces() -> None:
         "diagnostic_question": "Where does forward motion break first?",
         "personal_social_title": "YOUR TABS AREN'T THE PROBLEM.",
         "personal_social_copy": "The missing route keeps taxing your attention.",
-        "business_social_title": "EVERY HANDOFF COLLECTS INTEREST.",
-        "business_social_copy": "When context stops, the work gets paid for twice.",
+        "business_social_title": "AI CREATED A JOB. NOBODY WANTED.",
+        "business_social_copy": "Your AI tools didn't remove the work. They reassigned it to you.",
         "doctrine_social_title": "AUTOMATION CAN'T CARRY MISSING CONTEXT.",
-        "doctrine_social_copy": "Repair the operating layer first.",
+        "doctrine_social_copy": "Fix what keeps sending the work back.",
         "motion_scene_one_title": "THE SYSTEM IS GREEN.",
         "motion_scene_one_copy": "Every tool reports activity.",
         "motion_scene_two_title": "THE WORK IS STUCK.",
-        "motion_scene_two_copy": "The handoff keeps losing the route.",
+        "motion_scene_two_copy": "The work keeps coming back.",
         "motion_scene_three_title": "FIND THE BREAK.",
         "motion_scene_three_copy": "Diagnose the friction before adding software.",
     }
     pages = renderer.apply_production_plan({"copy": copy})
     assert "The system is green.<br>The work is stuck." in pages["index.html"]
     assert "Where does forward motion break first?" in pages["diagnostic.html"]
-    assert "EVERY HANDOFF COLLECTS INTEREST." in pages["social.html"]
+    assert "AI CREATED A JOB. NOBODY WANTED." in pages["social.html"]
     assert "THE WORK IS STUCK." in pages["motion.html"]

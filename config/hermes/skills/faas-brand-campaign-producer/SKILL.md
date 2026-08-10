@@ -30,6 +30,16 @@ The open identity inventory is intentional. Do not invent a permanent logo syste
 9. Inspect the actual files at desktop, mobile, social, and motion dimensions.
 10. Revise or fail the work. Never turn a technical pass into a creative pass.
 
+## Copy discipline
+
+- TransformBy10X carries the master idea. Do not turn the full campaign into a BizBuilders AI or Fog-Lift campaign.
+- Work and business consequences may route to BizBuilders AI. Personal Digital Fog may route to Fog-Lift.
+- BizBot comes later, after the business is fixed enough that a bot will not make the mess worse.
+- Headlines name a lived consequence in twelve words or fewer.
+- Prefer pressure, recognition, and plain speech over categories and process language.
+- Reject "handoff," "operational readiness," "operating layer," "transformation journey," "unlock," "leverage," "seamless," and similar corporate filler.
+- B2B standard: "AI Created a Job. Nobody Wanted." and "Your AI Tools Didn't Remove the Work. They Reassigned It to You."
+
 ## Quality characteristics
 
 - Sophisticated, not corporate.

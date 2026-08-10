@@ -13,6 +13,8 @@ import {
   Send,
   ShieldCheck,
   AlertTriangle,
+  Archive,
+  Ban,
   XCircle,
   Zap,
 } from 'lucide-react'
@@ -82,12 +84,12 @@ const agentDisplay = {
   alpha: {
     name: 'Hermes Agent',
     lane: 'Alpha',
-    purpose: 'Public-facing drafts and reputation-sensitive work',
+    purpose: 'Campaign direction, public work, and brand-critical production',
   },
   beta: {
     name: 'OpenClaw',
     lane: 'Beta',
-    purpose: 'Analysis, production, and file-aware execution',
+    purpose: 'Research, strategy, routing, and package verification',
   },
   gamma: {
     name: 'Agent Zero',
@@ -105,6 +107,8 @@ const statusCopy: Record<string, string> = {
   completed: 'Ready for review',
   failed: 'Needs attention',
   blocked: 'Blocked',
+  declined: 'Declined',
+  archived: 'Removed',
 }
 
 /** Operator work class (FAAS envelope v2) → readable label */
@@ -194,7 +198,7 @@ function isImageFile(name: string) {
 
 function statusTone(status: string) {
   if (status === 'completed') return 'bg-emerald-50 text-emerald-800'
-  if (status === 'failed' || status === 'blocked') return 'bg-red-50 text-red-800'
+  if (status === 'failed' || status === 'blocked' || status === 'declined') return 'bg-red-50 text-red-800'
   if (status === 'review_required') return 'bg-amber-50 text-amber-900'
   if (status === 'active') return 'bg-sky-50 text-sky-800'
   return 'bg-stone-100 text-stone-700'
@@ -211,7 +215,7 @@ function lifecycleFor(task: ModelTask | null) {
   ]
 
   if (!task) return { steps, current: -1, failed: false }
-  if (task.status === 'failed' || task.status === 'blocked') {
+  if (task.status === 'failed' || task.status === 'blocked' || task.status === 'declined') {
     return { steps, current: Math.max(1, steps.findIndex((step) => step.id === 'work')), failed: true }
   }
   if (task.status === 'completed') return { steps, current: steps.length - 1, failed: false }
@@ -254,6 +258,11 @@ export function FlowControl() {
   const [reviewStatus, setReviewStatus] = useState<ReviewStatus | null>(null)
   const [reviewSubmitting, setReviewSubmitting] = useState(false)
   const [approvalRunning, setApprovalRunning] = useState(false)
+  const [declineRunning, setDeclineRunning] = useState(false)
+  const [removeRunning, setRemoveRunning] = useState(false)
+  const [declineReason, setDeclineReason] = useState('')
+  const [showDecline, setShowDecline] = useState(false)
+  const [showRemove, setShowRemove] = useState(false)
   const [reviewPack, setReviewPack] = useState(reviewTemplates(null))
   const [form, setForm] = useState({
     title: '',
@@ -283,7 +292,7 @@ export function FlowControl() {
     if (filter === 'in_flight') return tasks.filter((task) => ['pending', 'validated', 'queued', 'active'].includes(task.status))
     if (filter === 'review') return tasks.filter((task) => task.status === 'review_required')
     if (filter === 'ready') return tasks.filter((task) => task.status === 'completed')
-    return tasks.filter((task) => ['failed', 'blocked'].includes(task.status))
+    return tasks.filter((task) => ['failed', 'blocked', 'declined'].includes(task.status))
   }, [filter, tasks])
 
   const taskCounts = useMemo(
@@ -291,7 +300,7 @@ export function FlowControl() {
       in_flight: tasks.filter((task) => ['pending', 'validated', 'queued', 'active'].includes(task.status)).length,
       review: tasks.filter((task) => task.status === 'review_required').length,
       ready: tasks.filter((task) => task.status === 'completed').length,
-      failed: tasks.filter((task) => ['failed', 'blocked'].includes(task.status)).length,
+      failed: tasks.filter((task) => ['failed', 'blocked', 'declined'].includes(task.status)).length,
     }),
     [tasks],
   )
@@ -332,6 +341,9 @@ export function FlowControl() {
     setArtifactContent('')
     setArtifactFiles([])
     setReviewStatus(null)
+    setShowDecline(false)
+    setShowRemove(false)
+    setDeclineReason('')
     setReviewPack(reviewTemplates(selected))
     if (selected?.status === 'review_required') {
       loadReviewStatus(selected.task_id).catch(() => undefined)
@@ -520,6 +532,52 @@ export function FlowControl() {
     }
   }
 
+  async function declineReview() {
+    if (!selected || declineReason.trim().length < 3) return
+    setDeclineRunning(true)
+    setNotice(null)
+    try {
+      await api(`/agent-zero/reviews/${selected.task_id}/decline`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: declineReason.trim(), actor: 'dashboard' }),
+      })
+      setNotice({ tone: 'success', text: 'Review declined. This task cannot execute.' })
+      setShowDecline(false)
+      await refresh({ quiet: true })
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : 'The review could not be declined.',
+      })
+    } finally {
+      setDeclineRunning(false)
+    }
+  }
+
+  async function removeTask() {
+    if (!selected) return
+    setRemoveRunning(true)
+    setNotice(null)
+    try {
+      await api(`/flow/model/jobs/${selected.task_id}/archive`, {
+        method: 'POST',
+        body: JSON.stringify({ reason: 'Removed from the task workspace', actor: 'dashboard' }),
+      })
+      setTasks((current) => current.filter((task) => task.task_id !== selected.task_id))
+      setSelected(null)
+      setSelectedId('')
+      setShowRemove(false)
+      setNotice({ tone: 'success', text: 'Task removed. Its record and artifacts remain preserved.' })
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        text: error instanceof Error ? error.message : 'The task could not be removed.',
+      })
+    } finally {
+      setRemoveRunning(false)
+    }
+  }
+
   function reuseTask() {
     if (!selected) return
     setForm((current) => ({
@@ -546,12 +604,12 @@ export function FlowControl() {
     <div className="mx-auto max-w-[1500px] px-5 pb-16 pt-8 sm:px-8 lg:px-10 lg:pt-10">
       <section className="grid gap-8 border-b border-flow-line pb-9 lg:grid-cols-[1fr_auto] lg:items-end">
         <div>
-          <p className="mb-3 text-sm font-semibold text-flow-accent-deep">Task workspace</p>
+          <p className="mb-3 text-sm font-semibold text-flow-accent-deep">FAAS control</p>
           <h1 className="max-w-4xl text-4xl font-semibold leading-[1.02] tracking-[-0.048em] text-flow-ink sm:text-5xl">
-            Give the work a clear path from request to result.
+            See the work. Make the call.
           </h1>
           <p className="mt-4 max-w-2xl text-base leading-7 text-flow-muted">
-            Submit the brief, follow the assigned agent, handle approvals, and inspect the finished artifact in one place.
+            Start a task, see who owns it, approve or decline risky work, and inspect what was actually produced.
           </p>
         </div>
         <button
@@ -888,15 +946,27 @@ export function FlowControl() {
                       {selected.title}
                     </h2>
                   </div>
-                  <button
-                    type="button"
-                    onClick={reuseTask}
-                    className="flow-button flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-flow-line bg-white text-flow-muted"
-                    aria-label="Use this task as a new brief"
-                    title="Use as a new brief"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </button>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={reuseTask}
+                      className="flow-button flex h-9 w-9 items-center justify-center rounded-lg border border-flow-line bg-white text-flow-muted"
+                      aria-label="Use this task as a new brief"
+                      title="Use as a new brief"
+                    >
+                      <Copy className="h-4 w-4" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowRemove(true)}
+                      disabled={selected.status === 'active'}
+                      className="flow-button flex h-9 w-9 items-center justify-center rounded-lg border border-flow-line bg-white text-flow-muted disabled:cursor-not-allowed disabled:opacity-35"
+                      aria-label="Remove this task"
+                      title={selected.status === 'active' ? 'Active work cannot be removed' : 'Remove task'}
+                    >
+                      <Archive className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 <div className="mt-6 flex items-center">
@@ -924,6 +994,28 @@ export function FlowControl() {
               </div>
 
               <div className="flow-scrollbar max-h-[calc(100vh-9rem)] space-y-6 overflow-y-auto px-5 py-5 sm:px-6">
+                {showRemove && (
+                  <section className="rounded-xl border border-flow-line bg-stone-100 p-4">
+                    <h3 className="text-sm font-semibold text-flow-ink">Remove this task?</h3>
+                    <p className="mt-1 text-xs leading-5 text-flow-muted">
+                      It leaves the workspace and cannot run. Its record and finished files stay preserved.
+                    </p>
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={removeTask}
+                        disabled={removeRunning}
+                        className="flow-button inline-flex h-9 items-center gap-2 rounded-lg bg-flow-ink px-3 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        {removeRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
+                        Remove task
+                      </button>
+                      <button type="button" onClick={() => setShowRemove(false)} className="px-3 text-xs font-semibold text-flow-muted">
+                        Keep it
+                      </button>
+                    </div>
+                  </section>
+                )}
                 <section>
                   <h3 className="text-xs font-semibold text-flow-muted">Finished result</h3>
                   <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-flow-ink">{selected.goal}</p>
@@ -956,7 +1048,7 @@ export function FlowControl() {
                   </div>
                 </dl>
 
-                {selected.error_message && selected.status === 'failed' && (
+                {selected.error_message && ['failed', 'blocked', 'declined'].includes(selected.status) && (
                   <section className="rounded-xl border border-red-200 bg-red-50 p-4">
                     <div className="flex items-center gap-2 font-semibold text-red-900">
             <AlertTriangle className="h-4 w-4" />
@@ -1046,6 +1138,45 @@ export function FlowControl() {
                         {approvalRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
                         Approve and run
                       </button>
+                    </div>
+                    <div className="mt-3 border-t border-amber-200 pt-3">
+                      {!showDecline ? (
+                        <button
+                          type="button"
+                          onClick={() => setShowDecline(true)}
+                          className="inline-flex h-9 items-center gap-2 text-xs font-semibold text-red-800"
+                        >
+                          <Ban className="h-3.5 w-3.5" />
+                          Decline this review
+                        </button>
+                      ) : (
+                        <div>
+                          <label className="block">
+                            <span className="mb-1.5 block text-xs font-semibold text-red-900">Why is this declined?</span>
+                            <textarea
+                              value={declineReason}
+                              onChange={(event) => setDeclineReason(event.target.value)}
+                              className="flow-input min-h-[5rem] resize-y px-3 py-2 text-xs leading-5"
+                              placeholder="State what must change before this work is proposed again."
+                              autoFocus
+                            />
+                          </label>
+                          <div className="mt-2 flex gap-2">
+                            <button
+                              type="button"
+                              onClick={declineReview}
+                              disabled={declineReason.trim().length < 3 || declineRunning}
+                              className="flow-button inline-flex h-9 items-center gap-2 rounded-lg bg-red-900 px-3 text-xs font-semibold text-white disabled:opacity-40"
+                            >
+                              {declineRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Ban className="h-3.5 w-3.5" />}
+                              Decline review
+                            </button>
+                            <button type="button" onClick={() => setShowDecline(false)} className="px-3 text-xs font-semibold text-amber-900">
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </section>
                 )}

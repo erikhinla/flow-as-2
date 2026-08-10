@@ -4,7 +4,7 @@
   "task_id": "c614d756-c574-457b-8f38-813965564f3f",
   "created_at": "2026-08-09T15:24:00Z",
   "source": "dashboard",
-  "title": "Build the connected Digital Fog to Digital Friction campaign proof",
+  "title": "Build the connected TransformBy10X campaign proof",
   "instruction": "Read all three mounted creative authorities completely. In Campaign Mode, execute one connected idea across a working homepage moment, Personal and Business diagnostic entry, personalized result states, a 15-second motion piece with audio, and three platform-specific social placements. Use the existing Managing Digital Fog footage as source material. Stage the complete package for the human 8+/10 Creative Gate. Do not publish and do not lock permanent identity decisions.",
   "out_of_scope": [
     "Publishing",
@@ -43,7 +43,10 @@
     "render-manifest.json"
   ],
   "acceptance_criteria": [
-    "Campaign Mode is primary and the idea can be stated in one sentence: software reports activity while people and businesses absorb the cost of missing context, ownership, and routing.",
+    "Campaign Mode is primary and TransformBy10X carries one master idea across the personal and business consequences.",
+    "Business copy reaches the pressure and recognition of: AI Created a Job. Nobody Wanted. and Your AI Tools Didn't Remove the Work. They Reassigned It to You.",
+    "Personal copy remains specific to lived Digital Fog and does not borrow B2B workload language.",
+    "No public copy uses handoff, operational readiness, operating layer, transformation journey, unlock, leverage, seamless, or similar corporate filler.",
     "The homepage has no default logo-in-header treatment and does not look like a SaaS template.",
     "Dominant imagery is physically constructed from optical glass, machined steel, resin, copper, and architectural light; the original footage appears only as subordinate lived-condition evidence.",
     "The working diagnostic allows Personal and Business route selection and includes functional selection, loading, error, and result behavior.",
@@ -91,8 +94,8 @@
     ]
   },
   "creative": {
-    "campaign": "Everything works. Nothing moves.",
-    "project": "Digital Fog to Digital Friction connected campaign proof",
+    "campaign": "TransformBy10X: Everything works. Nothing moves.",
+    "project": "TransformBy10X connected Work and Life campaign proof",
     "asset_label": "FAAS campaign system proof 01",
     "defined_use": "Provisional connected campaign proof for human review; not a permanent identity lock.",
     "primary_mode": "campaign",

@@ -12,6 +12,7 @@ All operations are async/await compatible.
 """
 
 import logging
+from datetime import datetime
 from typing import Optional, List, Dict, Any
 import json
 
@@ -124,6 +125,17 @@ class RedisQueueService:
             return depth or 0
         except Exception as e:
             logger.error(f"Error getting queue depth for {owner}: {e}")
+            return 0
+
+    async def remove_job(self, owner: str, job_id: str) -> int:
+        """Remove every queued copy of one job without disturbing other work."""
+        try:
+            queue_name = self.get_queue_name(owner)
+            removed = await self.redis.lrem(queue_name, 0, job_id)
+            logger.info("Removed %s queued copies of job %s from %s", removed, job_id, queue_name)
+            return int(removed or 0)
+        except Exception as exc:
+            logger.error("Error removing job %s from %s queue: %s", job_id, owner, exc)
             return 0
     
     async def get_all_queue_depths(self) -> Dict[str, int]:

@@ -297,14 +297,14 @@ def test_creative_production_plan_requires_binding_agent_decisions(tmp_path: Pat
         "diagnostic_question": "Where does forward motion break first?",
         "personal_social_title": "YOUR TABS AREN'T THE PROBLEM.",
         "personal_social_copy": "The missing route keeps taxing your attention.",
-        "business_social_title": "EVERY HANDOFF COLLECTS INTEREST.",
-        "business_social_copy": "When context stops, the work gets paid for twice.",
+        "business_social_title": "AI CREATED A JOB. NOBODY WANTED.",
+        "business_social_copy": "Your AI tools didn't remove the work. They reassigned it to you.",
         "doctrine_social_title": "AUTOMATION CAN'T CARRY MISSING CONTEXT.",
-        "doctrine_social_copy": "Repair the operating layer first.",
+        "doctrine_social_copy": "Fix what keeps sending the work back.",
         "motion_scene_one_title": "THE SYSTEM IS GREEN.",
         "motion_scene_one_copy": "Every tool reports activity.",
         "motion_scene_two_title": "THE WORK IS STUCK.",
-        "motion_scene_two_copy": "The handoff keeps losing the route.",
+        "motion_scene_two_copy": "The work keeps coming back.",
         "motion_scene_three_title": "FIND THE BREAK.",
         "motion_scene_three_copy": "Diagnose the friction before adding software.",
     }
@@ -329,7 +329,7 @@ def test_creative_production_plan_requires_binding_agent_decisions(tmp_path: Pat
                 "visual_system": {
                     "material_direction": "Optical glass, machined steel, resin, and controlled copper details.",
                     "composition_logic": "Deep asymmetric frames use physical obstruction and one resolved route.",
-                    "light_behavior": "Warm light moves through the route and stops at the broken handoff.",
+                    "light_behavior": "Warm light moves through the route and stops at the broken connection.",
                     "source_footage_role": "Footage appears only as subordinate lived-condition evidence.",
                     "template_rejection": "No logo header, floating dashboard, neon gradient, or SaaS feature grid.",
                 },
@@ -337,7 +337,7 @@ def test_creative_production_plan_requires_binding_agent_decisions(tmp_path: Pat
                 "production_actions": [
                     "Build the interrupted route as the hero object.",
                     "Keep footage subordinate to the physical system.",
-                    "Use motion to reveal the handoff failure.",
+                    "Use motion to reveal why the work comes back.",
                 ],
             }
         ),

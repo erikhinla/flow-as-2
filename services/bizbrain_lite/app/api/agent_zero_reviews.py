@@ -73,6 +73,11 @@ class ExecutionResponse(BaseModel):
     error: Optional[str] = None
 
 
+class DeclineReviewRequest(BaseModel):
+    reason: str = Field(..., min_length=3, max_length=500)
+    actor: str = "dashboard"
+
+
 # ============================================================================
 # Endpoints
 # ============================================================================
@@ -127,7 +132,7 @@ async def get_review_status(
         rollback_valid=status['rollback']['valid'],
         rollback_error=status['rollback'].get('error'),
         all_valid=all_valid,
-        can_execute=all_valid,
+        can_execute=all_valid and job.status == JobStatus.REVIEW_REQUIRED.value,
         timestamp=datetime.utcnow().isoformat()
     )
 
@@ -172,6 +177,8 @@ async def submit_review_artifacts(
     
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    if job.status != JobStatus.REVIEW_REQUIRED.value:
+        raise HTTPException(status_code=409, detail="Only a task awaiting review can accept a review pack")
     
     # Save artifacts
     try:
@@ -196,6 +203,34 @@ async def submit_review_artifacts(
     
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to save artifacts: {str(e)}")
+
+
+@router.post("/reviews/{job_id}/decline")
+async def decline_review(
+    job_id: str,
+    request: DeclineReviewRequest,
+    db: AsyncSession = Depends(get_db_session),
+    queue_service: RedisQueueService = Depends(get_redis_queue_service),
+) -> Dict[str, Any]:
+    """Reject proposed work and make execution impossible without a new task."""
+    result = await db.execute(select(JobRecord).where(JobRecord.job_id == job_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+    if job.status != JobStatus.REVIEW_REQUIRED.value:
+        raise HTTPException(status_code=409, detail="Only a task awaiting review can be declined")
+
+    removed = await queue_service.remove_job(job.owner, job.job_id)
+    job.status = JobStatus.DECLINED.value
+    job.error_message = f"Review declined by {request.actor}: {request.reason}"
+    db.add(job)
+    await db.commit()
+    return {
+        "status": "declined",
+        "job_id": job_id,
+        "reason": request.reason,
+        "removed_from_queue": removed,
+    }
 
 
 @router.post("/execute", response_model=ExecutionResponse)
@@ -243,6 +278,12 @@ async def execute_task(
     
     if not job:
         raise HTTPException(status_code=404, detail=f"Job {request.job_id} not found")
+    if job.status != JobStatus.REVIEW_REQUIRED.value:
+        return ExecutionResponse(
+            status="blocked",
+            job_id=request.job_id,
+            error=f"Task is {job.status}; only work awaiting review can be approved.",
+        )
     
     # Block if artifacts missing
     can_execute, error_msg = await ReviewEnforcementService.block_if_missing_artifacts(

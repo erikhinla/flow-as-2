@@ -16,6 +16,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 from datetime import datetime
@@ -78,6 +79,23 @@ CREATIVE_PRODUCTION_PLAN_FIELDS = (
     "motion_scene_two_copy",
     "motion_scene_three_title",
     "motion_scene_three_copy",
+)
+CREATIVE_HEADLINE_FIELDS = tuple(
+    field
+    for field in CREATIVE_PRODUCTION_PLAN_FIELDS
+    if field.endswith(("_headline", "_title", "_question"))
+)
+CREATIVE_COPY_HARD_FAILS = (
+    "handoff",
+    "operational readiness",
+    "operating layer",
+    "transformation journey",
+    "unlock",
+    "leverage",
+    "seamless",
+    "supercharge",
+    "revolutionary",
+    "next-gen",
 )
 
 # ── System prompts per agent ──────────────────────────────────────────────────
@@ -247,6 +265,26 @@ def validate_creative_production_plan(job_workspace: Path, primary_mode: str) ->
         raise RuntimeError(
             "Creative production plan is missing copy fields: " + ", ".join(missing_copy)
         )
+    failed_phrases = sorted(
+        phrase
+        for phrase in CREATIVE_COPY_HARD_FAILS
+        if any(phrase in str(value).lower() for value in copy.values())
+    )
+    if failed_phrases:
+        raise RuntimeError(
+            "Creative production plan contains rejected corporate copy: "
+            + ", ".join(failed_phrases)
+        )
+    long_headlines = [
+        field
+        for field in CREATIVE_HEADLINE_FIELDS
+        if len(re.findall(r"\b[\w’'-]+\b", str(copy.get(field) or ""))) > 12
+    ]
+    if long_headlines:
+        raise RuntimeError(
+            "Creative production plan headlines exceed twelve words: "
+            + ", ".join(long_headlines)
+        )
     actions = plan.get("production_actions")
     if not isinstance(actions, list) or len(actions) < 3:
         raise RuntimeError("Creative production plan requires at least three production actions")
@@ -277,6 +315,18 @@ def build_creative_production_prompt(
         "technically clear, and capable of campaign-level impact. Do not impose a permanent "
         "logo, typeface, palette, icon set, or token system. Do not use a default logo header "
         "or a familiar SaaS template.\n\n"
+        "TransformBy10X owns the master campaign idea. Do not turn the whole proof into a "
+        "BizBuilders AI campaign or a Fog-Lift campaign. Use the Personal fields for the "
+        "Digital Fog to Fog-Lift path, the Business fields for the work problem to BizBuilders "
+        "AI path, and the Doctrine fields for the TransformBy10X point of view. BizBot comes "
+        "later, after the business is fixed enough that a bot will not make the mess worse.\n\n"
+        "COPY HARD FAIL: Every headline, title, and question must use twelve words or fewer. "
+        "Name the consequence fast. Reject handoff, operational readiness, operating layer, "
+        "transformation journey, unlock, leverage, seamless, supercharge, revolutionary, and "
+        "next-gen. The B2B pressure and sharpness standard is: 'AI Created a Job. Nobody "
+        "Wanted.' and 'Your AI Tools Didn't Remove the Work. They Reassigned It to You.' "
+        "Use that level of recognition; do not stretch those business lines across the personal "
+        "or master-campaign surfaces.\n\n"
         f"Source files:\n{json.dumps(sources, indent=2)}\n\n"
         "Write exactly one binding JSON artifact to "
         f"{job_workspace / 'creative-production-plan.json'}. The renderer will consume it. "
@@ -304,7 +354,7 @@ def build_creative_production_prompt(
         '  "production_actions": ["specific action", "specific action", "specific action"]\n'
         "}\n\n"
         "Every public line must sound spoken, use contractions naturally, avoid AI/consulting "
-        "hype, and preserve Fog-Lift, BizBuilders AI, and BizBot routing from Canon."
+        "hype, and preserve the distinct TransformBy10X, Fog-Lift, BizBuilders AI, and BizBot roles from Canon."
     )
 
 

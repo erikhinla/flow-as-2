@@ -55,11 +55,11 @@ def apply_production_plan(plan: dict[str, Any]) -> dict[str, str]:
     headline = _html_line(copy["homepage_headline"]).replace("\n", "<br>")
     home = HOME.replace("Everything works.<br>Nothing moves.", headline)
     home = home.replace(
-        "Your tools report activity. Your day keeps paying for the missing operating layer.",
+        "Every tool says it worked. You still have to make the work move.",
         _html_line(copy["homepage_lede"]),
     )
     home = home.replace(
-        "The dashboard sees output. It can't see the handoff.",
+        "The dashboard sees output. It can't see who owns the next move.",
         _html_line(copy["evidence_line"]),
     )
     home = home.replace(
@@ -85,7 +85,7 @@ def apply_production_plan(plan: dict[str, Any]) -> dict[str, str]:
         _html_line(copy["personal_social_copy"]),
     )
     social = social.replace(
-        "title.textContent = 'EVERY HANDOFF IS A TAX.'",
+        "title.textContent = 'AI CREATED A JOB. NOBODY WANTED.'",
         f"title.textContent = {_js_line(copy['business_social_title'])}",
     ).replace(
         'copy.textContent = "When context doesn\'t travel, the work pays twice."',
@@ -95,7 +95,7 @@ def apply_production_plan(plan: dict[str, Any]) -> dict[str, str]:
         'title.textContent = "YOU CAN\'T AUTOMATE A MESS."',
         f"title.textContent = {_js_line(copy['doctrine_social_title'])}",
     ).replace(
-        "copy.textContent = 'Diagnose the operating layer first.'",
+        "copy.textContent = 'Fix what keeps sending the work back.'",
         f"copy.textContent = {_js_line(copy['doctrine_social_copy'])}",
     )
 
@@ -112,7 +112,7 @@ def apply_production_plan(plan: dict[str, Any]) -> dict[str, str]:
         "title.textContent = 'NOTHING MOVES.'",
         f"title.textContent = {_js_line(copy['motion_scene_two_title'])}",
     ).replace(
-        "copy.textContent = 'The handoff keeps rebuilding the truth.'",
+        "copy.textContent = 'The work keeps coming back.'",
         f"copy.textContent = {_js_line(copy['motion_scene_two_copy'])}",
     )
     motion = motion.replace(
@@ -530,16 +530,16 @@ JS = r"""
   const resultTitle = document.querySelector('[data-result-title]');
   if (resultTitle) {
     const business = state.route === 'bizbuilders';
-    resultTitle.textContent = business ? 'HANDOFF DEBT.' : 'CONTEXT SWITCHING.';
+    resultTitle.textContent = business ? 'THE WORK CAME BACK.' : 'CONTEXT SWITCHING.';
     document.querySelector('[data-result-kicker]').textContent = business ? 'Your friction pattern' : 'Your fog pattern';
     document.querySelector('[data-result-copy]').textContent = business
-      ? 'The work is moving, but truth and ownership are being rebuilt at every handoff.'
+      ? "Your AI tools didn't remove the work. They reassigned it to you."
       : 'Your attention is doing the routing work your tools were supposed to carry.';
     const cta = document.querySelector('[data-result-cta]');
     cta.textContent = business ? 'Build the foundation' : 'Clear the fog';
     cta.href = business ? 'https://transformby10x.ai/bizbuilders-ai/' : 'https://transformby10x.ai/foglift-kit.html';
     document.querySelector('[data-proof-one]').textContent = business ? 'Context is recovered before work can continue.' : 'You keep deciding where to look next.';
-    document.querySelector('[data-proof-two]').textContent = business ? 'Ownership blurs between people and tools.' : 'Small handoffs keep breaking your focus.';
+    document.querySelector('[data-proof-two]').textContent = business ? 'Ownership blurs between people and tools.' : 'Tiny interruptions keep breaking your focus.';
   }
 })();
 """
@@ -580,15 +580,15 @@ HOME = page_document(
     <div class="hero-copy">
       <div class="status"><span class="lamp" aria-hidden="true"></span>System status: green</div>
       <h1>Everything works.<br>Nothing moves.</h1>
-      <p class="lede">Your tools report activity. Your day keeps paying for the missing operating layer.</p>
+      <p class="lede">Every tool says it worked. You still have to make the work move.</p>
       <div class="actions"><a class="button" href="diagnostic.html">Find the blockage</a></div>
     </div>
     <div class="hero-media">
       <figure class="bezel">
-        <img src="assets/field-a.jpg" alt="A physically constructed routing instrument with a luminous signal interrupted at the handoff">
+        <img src="assets/field-a.jpg" alt="A physically constructed signal instrument with one visibly broken connection">
         <div class="instrument" aria-hidden="true"><span>Signal</span><b>Green</b><span>Context</span><b>Lost</b></div>
         <figcaption class="evidence">
-          <strong>The dashboard sees output. It can't see the handoff.</strong>
+          <strong>The dashboard sees output. It can't see who owns the next move.</strong>
           <dl><dt>REPORTED</dt><dd>ACTIVE</dd><dt>EXPERIENCED</dt><dd>STUCK</dd></dl>
         </figcaption>
       </figure>
@@ -598,7 +598,7 @@ HOME = page_document(
     <div class="friction-copy">
       <h2>Fog is how it feels. Friction is what it costs.</h2>
       <p>The gap between information, ownership, and action is where momentum disappears. Diagnose the gap before adding another tool.</p>
-      <figure class="source-evidence"><img src="assets/source-evidence-a.jpg" alt="Personal digital fog source evidence"><img src="assets/source-evidence-b.jpg" alt="Business digital friction source evidence"><figcaption>Activity visible / handoff missing</figcaption></figure>
+      <figure class="source-evidence"><img src="assets/source-evidence-a.jpg" alt="Personal digital fog source evidence"><img src="assets/source-evidence-b.jpg" alt="Business digital friction source evidence"><figcaption>Activity visible / ownership missing</figcaption></figure>
     </div>
     <div class="fault-map" aria-label="Common friction signals">
       <div class="fault"><b>A</b><span>Find the truth</span></div>
@@ -627,7 +627,7 @@ DIAGNOSTIC = page_document(
     <div class="answers">
       <button class="answer" type="button" data-answer="find"><strong>Finding what matters</strong><span>I know it exists. I don't know where.</span></button>
       <button class="answer" type="button" data-answer="trust"><strong>Trusting the information</strong><span>I keep checking whether the answer is current.</span></button>
-      <button class="answer" type="button" data-answer="handoff"><strong>Handing work over</strong><span>The next person has to rebuild the context.</span></button>
+      <button class="answer" type="button" data-answer="context"><strong>Passing work between people</strong><span>The next person has to rebuild the context.</span></button>
       <button class="answer" type="button" data-answer="finish"><strong>Finishing the work</strong><span>Activity rises. The result keeps slipping.</span></button>
     </div>
     <div class="loading" data-loading aria-label="Loading next question"><i></i><i></i></div>
@@ -647,9 +647,9 @@ RESULT = page_document(
     <h1 data-result-title>CONTEXT SWITCHING.</h1>
     <p class="lede" data-result-copy>Your attention is doing the routing work your tools were supposed to carry.</p>
     <div class="actions"><a class="button" data-result-cta href="https://transformby10x.ai/foglift-kit.html">Clear the fog</a><a class="button secondary" href="diagnostic.html">Check another signal</a></div>
-    <div class="result-proof"><div><b>What happens</b><span data-proof-one>You keep deciding where to look next.</span></div><div><b>What it creates</b><span data-proof-two>Small handoffs keep breaking your focus.</span></div></div>
+    <div class="result-proof"><div><b>What happens</b><span data-proof-one>You keep deciding where to look next.</span></div><div><b>What it creates</b><span data-proof-two>Tiny interruptions keep breaking your focus.</span></div></div>
   </section>
-  <aside class="result-visual"><img src="assets/field-b.jpg" alt="A fabricated architectural corridor where layered handoffs resolve into one clear path"><div class="instrument" aria-hidden="true"><span>Route</span><b>Found</b><span>Owner</span><b>Pending</b></div></aside>
+  <aside class="result-visual"><img src="assets/field-b.jpg" alt="A fabricated architectural corridor where broken ownership resolves into one clear path"><div class="instrument" aria-hidden="true"><span>Route</span><b>Found</b><span>Owner</span><b>Pending</b></div></aside>
 </main>""",
 )
 
@@ -669,10 +669,10 @@ SOCIAL = page_document(
   const mark = document.querySelector('[data-social-mark]');
   const image = document.querySelector('[data-social-image]');
   if (placement === 'business') {
-    root.classList.add('business'); title.textContent = 'EVERY HANDOFF IS A TAX.'; copy.textContent = "When context doesn't travel, the work pays twice."; mark.textContent = 'Digital Friction'; image.src = 'assets/field-b.jpg';
+    root.classList.add('business'); title.textContent = 'AI CREATED A JOB. NOBODY WANTED.'; copy.textContent = "Your AI tools didn't remove the work. They reassigned it to you."; mark.textContent = 'Digital Friction'; image.src = 'assets/field-b.jpg';
   }
   if (placement === 'story') {
-    root.classList.add('story'); title.textContent = "YOU CAN'T AUTOMATE A MESS."; copy.textContent = 'Diagnose the operating layer first.'; mark.textContent = 'Architecture over tools'; image.src = 'assets/field-a.jpg';
+    root.classList.add('story'); title.textContent = "YOU CAN'T AUTOMATE A MESS."; copy.textContent = 'Fix what keeps sending the work back.'; mark.textContent = 'Fix the work first'; image.src = 'assets/field-a.jpg';
   }
 </script>""",
 )
@@ -690,7 +690,7 @@ MOTION = page_document(
   const copy = document.querySelector('[data-motion-copy]');
   const status = document.querySelector('[data-motion-status]');
   const image = document.querySelector('[data-motion-image]');
-  if (scene === 'two') { title.textContent = 'NOTHING MOVES.'; copy.textContent = 'The handoff keeps rebuilding the truth.'; status.textContent = 'Lived status: stuck'; image.src = 'assets/field-b.jpg'; }
+  if (scene === 'two') { title.textContent = 'NOTHING MOVES.'; copy.textContent = 'The work keeps coming back.'; status.textContent = 'Lived status: stuck'; image.src = 'assets/field-b.jpg'; }
   if (scene === 'three') { title.textContent = 'FIND THE FRICTION.'; copy.textContent = 'Fog is how it feels. Friction is what it costs.'; status.textContent = 'Start with the blockage'; image.src = 'assets/field-a.jpg'; }
 </script>""",
 )
@@ -701,7 +701,7 @@ def validate_copy(site: Path, primary_line: str = CONCEPT) -> dict[str, str]:
     joined = "\n".join(path.read_text(encoding="utf-8") for path in visible_sources)
     checks = {
         "zero_em_dash": "PASS" if "—" not in joined and "–" not in joined else "FAIL",
-        "no_generic_ai_hype": "PASS" if not any(word in joined.lower() for word in ("unlock", "supercharge", "revolutionary", "seamless", "next-gen")) else "FAIL",
+        "no_generic_ai_hype": "PASS" if not any(word in joined.lower() for word in ("unlock", "supercharge", "revolutionary", "seamless", "next-gen", "handoff", "operational readiness", "operating layer", "transformation journey", "leverage")) else "FAIL",
         "no_logo_header": "PASS" if "logo" not in HEADER.lower() and "wordmark" not in HEADER.lower() else "FAIL",
         "one_primary_concept": "PASS" if primary_line.lower() in (site / "index.html").read_text(encoding="utf-8").lower() else "FAIL",
         "reduced_motion": "PASS" if "prefers-reduced-motion: reduce" in (site / "campaign.css").read_text(encoding="utf-8") else "FAIL",
@@ -780,7 +780,7 @@ def main() -> None:
         (site / "index.html", captures / "homepage-mobile.png", 390, 844, None),
         (site / "diagnostic.html", captures / "diagnostic-desktop.png", 1440, 900, {"type": "bizbuilders"}),
         (site / "diagnostic.html", captures / "diagnostic-mobile.png", 390, 844, {"type": "tbtx"}),
-        (site / "result.html", captures / "result-desktop.png", 1440, 900, {"type": "bizbuilders", "signal": "handoff"}),
+        (site / "result.html", captures / "result-desktop.png", 1440, 900, {"type": "bizbuilders", "signal": "context"}),
         (site / "result.html", captures / "result-mobile.png", 390, 844, {"type": "tbtx", "signal": "find"}),
     )
     social_specs = (
@@ -913,7 +913,7 @@ Dials: {json.dumps(planned_dials, sort_keys=True)}
 3. The diagnostic locates the first break in momentum.
 4. Personal fog routes to Fog-Lift.
 5. Business friction routes to BizBuilders AI.
-6. BizBot remains downstream until the operating layer is ready.
+6. BizBot comes later, after the business is fixed enough that a bot will not make the mess worse.
 
 No logo is used in the header. The campaign idea carries the opening moment.
 """)

@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_api_token
 from app.config.database import get_db_session
-from app.models.flow_job_record import JobRecord
+from app.models.flow_job_record import JobRecord, JobStatus
 from app.api.openclaw_intake import (
     TaskEnvelopeInput,
     get_redis_queue_service,
@@ -52,6 +52,11 @@ class BlockRequest(BaseModel):
     task_id: str
     reason: str = Field(..., min_length=3, max_length=500)
     actor: str = "landing_page"
+
+
+class ArchiveRequest(BaseModel):
+    reason: str = Field(default="Removed from the dashboard", min_length=3, max_length=500)
+    actor: str = "dashboard"
 
 
 def _handle_flow_error(exc: FlowControlError) -> HTTPException:
@@ -169,7 +174,10 @@ def _artifact_payload(task_id: str, artifact_path: Path) -> dict[str, Any]:
 
 
 @router.get("/model/jobs")
-async def model_jobs(db: AsyncSession = Depends(get_db_session)) -> dict[str, Any]:
+async def model_jobs(
+    include_archived: bool = False,
+    db: AsyncSession = Depends(get_db_session),
+) -> dict[str, Any]:
     """List every FLOW job in one dashboard library.
 
     Includes dashboard submissions and operator/API jobs (manual, webhook, …).
@@ -183,6 +191,7 @@ async def model_jobs(db: AsyncSession = Depends(get_db_session)) -> dict[str, An
         _model_job_payload(job)
         for job in result.scalars().all()
         if _is_postgres_model_job(job)
+        and (include_archived or job.status != JobStatus.ARCHIVED.value)
     ]
     known_ids = {task["task_id"] for task in model_tasks}
     filesystem_tasks = [
@@ -196,6 +205,39 @@ async def model_jobs(db: AsyncSession = Depends(get_db_session)) -> dict[str, An
         reverse=True,
     )
     return {"tasks": tasks[:100]}
+
+
+@router.post("/model/jobs/{task_id}/archive")
+async def archive_model_job(
+    task_id: str,
+    request: ArchiveRequest,
+    db: AsyncSession = Depends(get_db_session),
+    queue_service: RedisQueueService = Depends(get_redis_queue_service),
+) -> dict[str, Any]:
+    """Remove a task from the workspace while preserving its record and artifacts."""
+    result = await db.execute(select(JobRecord).where(JobRecord.job_id == task_id))
+    job = result.scalar_one_or_none()
+    if not job:
+        raise HTTPException(status_code=404, detail="FLOW task not found")
+    if job.status == JobStatus.ACTIVE.value:
+        raise HTTPException(status_code=409, detail="An active task cannot be removed")
+    if job.status == JobStatus.ARCHIVED.value:
+        return {"status": "archived", "task": _model_job_payload(job), "removed_from_queue": 0}
+
+    removed = await queue_service.remove_job(job.owner, job.job_id)
+    previous_status = job.status
+    job.status = JobStatus.ARCHIVED.value
+    job.error_message = (
+        f"Archived by {request.actor} from {previous_status}: {request.reason}"
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+    return {
+        "status": "archived",
+        "task": _model_job_payload(job),
+        "removed_from_queue": removed,
+    }
 
 
 @router.get("/model/jobs/{task_id}")
@@ -261,7 +303,7 @@ async def flow_tasks(
     db: AsyncSession = Depends(get_db_session),
 ) -> dict[str, Any]:
     """Compatibility list backed by the canonical Postgres execution plane."""
-    payload = await model_jobs(db)
+    payload = await model_jobs(include_archived=False, db=db)
     if not queue:
         return payload
     tasks = [
