@@ -28,6 +28,9 @@ services:
       SOCIAL_HUB_API_ORIGIN: ${SOCIAL_HUB_API_ORIGIN:-http://localhost:5173}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      POSTIZ_API_BASE_URL: ${POSTIZ_API_BASE_URL:-http://postiz:5000/api/public/v1}
+      POSTIZ_API_KEY: ${POSTIZ_API_KEY:-}
+      POSTIZ_INTEGRATION_MAP: ${POSTIZ_INTEGRATION_MAP:-{}}
     volumes:
       - ${HOME}/.openclaw/state:/root/.openclaw/state
       - ./runtime/reviews:/app/runtime/reviews

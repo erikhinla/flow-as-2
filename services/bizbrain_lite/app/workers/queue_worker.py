@@ -991,6 +991,36 @@ async def notify_discord(webhook_url: str, job_id: str, title: str, owner: str, 
         logger.warning("Discord notification failed for job_id=%s: %s", job_id, e)
 
 
+async def notify_activepieces(
+    inputs: dict,
+    job_id: str,
+    owner: str,
+    artifact_path: str,
+) -> None:
+    """Resume an Activepieces flow after a real FAAS worker completes."""
+    callback_url = str((inputs or {}).get("activepieces_callback_url") or "").strip()
+    if not callback_url:
+        return
+    callback_token = str((inputs or {}).get("activepieces_callback_token") or "").strip()
+    headers = {"Content-Type": "application/json"}
+    if callback_token:
+        headers["X-Api-Token"] = callback_token
+    payload = {
+        "job_id": job_id,
+        "owner": owner,
+        "status": "completed",
+        "artifact_path": artifact_path,
+    }
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(callback_url, headers=headers, json=payload)
+        if response.status_code >= 400:
+            raise RuntimeError(f"HTTP {response.status_code}: {response.text[:300]}")
+        logger.info("Activepieces callback delivered job_id=%s", job_id)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Activepieces callback failed job_id=%s: %s", job_id, exc)
+
+
 # ── Postgres transitions ──────────────────────────────────────────────────────
 
 async def activate_job(
@@ -1272,6 +1302,12 @@ async def worker_loop(owner: str, timeout: int) -> None:
                 title=effective_title,
                 owner=owner,
                 preview=output,
+            )
+            await notify_activepieces(
+                inputs=inputs,
+                job_id=job_id,
+                owner=owner,
+                artifact_path=artifact_path,
             )
 
     finally:

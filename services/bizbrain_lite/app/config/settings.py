@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     discord_webhook_url: str = ""
     output_dir: str = "/app/runtime/reviews"
     flow_state_dir: str = "~/.openclaw/state"
+    postiz_api_base_url: str = ""
+    postiz_api_key: str = ""
+    postiz_integration_map: str = "{}"
 
 
 @lru_cache(maxsize=1)
