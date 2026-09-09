@@ -50,7 +50,7 @@ The ecosystem is a deliberate sequence. It is not a collection of products or to
 > Intelligence isn’t the tool. It’s the infrastructure.
 
 **Supporting truths extracted from the architecture decks:**
-- You cannot automate a mess.
+- Ambiguity is the enemy of automation.
 - Growth is useless if the system drops the lead.
 - Generation is easy. Governance is hard.
 - Assets may evolve. Architecture does not.
@@ -85,7 +85,7 @@ It diagnoses and structures.
 - Governed Execution
 - The Authority Loop
 - Maximum Leverage Without Autonomy
-- “You can’t automate a mess.”
+- “Ambiguity is the enemy of automation.”
 - “Intelligence isn’t the tool. It’s the infrastructure.”
 
 ### 2.3 Forbidden Language
