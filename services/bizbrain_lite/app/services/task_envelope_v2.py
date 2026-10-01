@@ -123,26 +123,28 @@ def normalize_task_envelope(raw: dict[str, Any] | None) -> dict[str, Any]:
     # --- resolve core operator fields ---
     title = str(data.get("title") or "").strip()
     instruction = str(data.get("instruction") or data.get("goal") or "").strip()
-    success = data.get("success_looks_like") or data.get("win", {}).get("success_condition")
+    win = data.get("win") if isinstance(data.get("win"), dict) else {}
+    output = data.get("output") if isinstance(data.get("output"), dict) else {}
+    success = data.get("success_looks_like") or win.get("success_condition")
     if isinstance(success, list):
         success_text = "; ".join(str(s).strip() for s in success if str(s).strip())
     else:
         success_text = str(success or "").strip()
 
     out_of_scope = _as_list(data.get("out_of_scope"))
-    if not out_of_scope and isinstance(data.get("win"), dict):
-        out_of_scope = _as_list(data["win"].get("out_of_scope"))
+    if not out_of_scope:
+        out_of_scope = _as_list(win.get("out_of_scope"))
 
     deliverable = str(
         data.get("deliverable")
-        or (data.get("output") or {}).get("deliverable")
+        or output.get("deliverable")
         or data.get("output_required")
         or ""
     ).strip()
 
     required_artifacts = _as_list(
         data.get("required_artifacts")
-        or (data.get("output") or {}).get("required_artifacts")
+        or output.get("required_artifacts")
     )
     acceptance = _as_list(data.get("acceptance_criteria"))
 

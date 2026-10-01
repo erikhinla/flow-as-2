@@ -25,8 +25,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-INTAKE_DIR = pathlib.Path("/data/intake")
-INTAKE_DIR.mkdir(parents=True, exist_ok=True)
+INTAKE_DIR = pathlib.Path(os.environ.get("INTAKE_DIR", "/data/intake"))
+try:
+    INTAKE_DIR.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass
 FLOW_INTAKE_URL = os.environ.get("FLOW_INTAKE_URL", "http://bizbrain-lite:8000/v1/intake/task")
 
 
