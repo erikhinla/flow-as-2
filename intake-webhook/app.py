@@ -2,13 +2,20 @@ import datetime
 import json
 import os
 import pathlib
+import urllib.request
 import uuid
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
+
+from intake_envelope import (
+    build_diagnostic_task_envelope,
+    build_webhook_task_envelope,
+    commit_intake_record,
+)
 
 app = FastAPI()
 app.add_middleware(
@@ -20,6 +27,22 @@ app.add_middleware(
 
 INTAKE_DIR = pathlib.Path("/data/intake")
 INTAKE_DIR.mkdir(parents=True, exist_ok=True)
+FLOW_INTAKE_URL = os.environ.get("FLOW_INTAKE_URL", "http://bizbrain-lite:8000/v1/intake/task")
+
+
+def register_record(record: dict, envelope: dict) -> tuple[dict, dict]:
+    """POST the envelope into the governed registry, then mirror the accepted record."""
+    try:
+        return commit_intake_record(
+            INTAKE_DIR,
+            record,
+            envelope,
+            url=FLOW_INTAKE_URL,
+            token=os.environ.get("BIZBRAIN_API_TOKEN", ""),
+            opener=urllib.request.urlopen,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 class Sub(BaseModel):
@@ -845,12 +868,12 @@ def render_page(config: dict, question_markup: str) -> str:
 
 @app.post("/intake")
 def intake(sub: Sub):
-    task_id = "INTAKE-" + uuid.uuid4().hex[:12]
+    intake_ref = "INTAKE-" + uuid.uuid4().hex[:12]
     gap_count = sum(1 for v in (sub.gaps or {}).values() if v > 0)
     labels = ["Stable system", "Targeted resource", "Infrastructure conversation", "Full engagement"]
     routing = sub.routing or labels[min(gap_count, 3)]
-    envelope = {
-        "task_id": task_id,
+    record = {
+        "intake_ref": intake_ref,
         "name": sub.name,
         "email": sub.email,
         "company": sub.company,
@@ -860,16 +883,20 @@ def intake(sub: Sub):
         "friction": sub.friction,
         "stalling": sub.stalling,
         "answers": sub.answers,
-        "source": sub.source,
+        "origin": sub.source,
         "created": datetime.datetime.utcnow().isoformat(),
     }
-    pathlib.Path("/data/intake/" + task_id + ".json").write_text(json.dumps(envelope, indent=2))
-    print("Intake received:", task_id, routing, flush=True)
+    envelope = build_webhook_task_envelope({**record, "source": sub.source})
+    stored, registry = register_record(record, envelope)
+    print("Intake registered:", envelope["task_id"], registry.get("owner"), routing, flush=True)
     return {
         "status": "received",
-        "task_id": task_id,
+        "task_id": envelope["task_id"],
+        "intake_ref": intake_ref,
+        "owner": stored.get("owner"),
+        "queue": stored.get("queue"),
         "routing": routing,
-        "message": "Baseline recorded. Observations within one business day.",
+        "message": "Baseline recorded in the governed registry. Observations within one business day.",
     }
 
 
@@ -905,11 +932,23 @@ def diagnostic_submit(sub: DiagnosticSub):
         "answers": [answer.model_dump() for answer in sub.answers],
         "created": datetime.datetime.utcnow().isoformat(),
     }
-    pathlib.Path("/data/intake/" + session_id + ".json").write_text(json.dumps(record, indent=2))
-    print("Diagnostic received:", session_id, sub.diagnostic_type, category, score, flush=True)
+    envelope = build_diagnostic_task_envelope(record)
+    stored, registry = register_record(record, envelope)
+    print(
+        "Diagnostic registered:",
+        envelope["task_id"],
+        registry.get("owner"),
+        sub.diagnostic_type,
+        category,
+        score,
+        flush=True,
+    )
     return {
         "status": "received",
         "session_id": session_id,
+        "task_id": envelope["task_id"],
+        "owner": stored.get("owner"),
+        "queue": stored.get("queue"),
         "score": score,
         "max_score": max_score,
         "category": category,

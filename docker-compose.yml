@@ -1,11 +1,17 @@
 services:
   flow-gateway:
     build:
-      context: ./intake-webhook
+      context: .
+      dockerfile: intake-webhook/Dockerfile
     container_name: flow-gateway
     restart: unless-stopped
     environment:
       WEBHOOK_API_KEY: ${WEBHOOK_API_KEY:-change-me}
+      BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:-change-me}
+      FLOW_INTAKE_URL: ${FLOW_INTAKE_URL:-http://bizbrain-lite:8000/v1/intake/task}
+    depends_on:
+      bizbrain-lite:
+        condition: service_healthy
     volumes:
       - intake_data:/data/intake
     ports:
