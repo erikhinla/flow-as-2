@@ -460,12 +460,12 @@ def diagnostic_page(type: str = "tbtx"):
     question_markup = "\n".join(
         f"""
         <fieldset class="question" data-question-id="{q['id']}" data-dimension="{q['dimension']}">
-          <legend>{q['label']}</legend>
+          <legend><span class="q-num">{index}</span><span class="q-text">{q['label']}</span></legend>
           <div class="scale-labels"><span>{q['low']}</span><span>{q['high']}</span></div>
           <input aria-label="{q['label']}" type="range" min="1" max="5" value="3" />
         </fieldset>
         """
-        for q in config["questions"]
+        for index, q in enumerate(config["questions"], start=1)
     )
     return render_page(config, question_markup)
 
@@ -489,14 +489,15 @@ def index_page() -> str:
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>FLOW Diagnostics</title>
   <style>
-    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f5f6f1; color: #172033; }
-    main { width: min(880px, calc(100% - 32px)); margin: 0 auto; padding: 48px 0; }
-    h1 { font-size: clamp(2.2rem, 7vw, 5rem); line-height: 1; margin: 0 0 16px; letter-spacing: 0; }
-    p { color: #596271; max-width: 680px; }
-    .routes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 28px; }
-    a { display: grid; gap: 8px; padding: 20px; border: 3px solid #050505; color: inherit; text-decoration: none; background: white; }
-    strong { font-size: 1.15rem; }
-    span { color: #596271; }
+    body { margin: 0; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #f6f7f9; color: #1c2430; font-size: 16px; line-height: 1.55; }
+    main { width: min(720px, calc(100% - 40px)); margin: 0 auto; padding: 56px 0; }
+    h1 { font-size: 1.75rem; font-weight: 650; line-height: 1.25; margin: 0 0 12px; letter-spacing: -0.02em; }
+    p { color: #5c6778; margin: 0; }
+    .routes { display: grid; gap: 12px; margin-top: 28px; }
+    a { display: grid; gap: 4px; padding: 18px 20px; border: 1px solid #e3e7ee; border-radius: 12px; color: inherit; text-decoration: none; background: #fff; }
+    a:hover { border-color: #1f4fd8; }
+    strong { font-size: 1.05rem; font-weight: 650; }
+    span { color: #5c6778; font-size: 0.95rem; }
     @media (max-width: 720px) { .routes { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -526,214 +527,200 @@ def render_page(config: dict, question_markup: str) -> str:
   <style>
     :root {{
       color-scheme: light;
-      --bg-color: #F4F4F0;
-      --text-primary: #050505;
-      --accent-red: #E61919;
-      --surface-color: #EAE8E3;
-      --grid-line: #050505;
-      --muted: #4a4a44;
+      --bg: #f6f7f9;
+      --text: #1c2430;
+      --muted: #5c6778;
+      --line: #e3e7ee;
+      --accent: #1f4fd8;
+      --surface: #fff;
     }}
-    * {{ box-sizing: border-box; border-radius: 0 !important; }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
       font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: var(--bg-color);
-      color: var(--text-primary);
-      line-height: 1.5;
-      background-image: linear-gradient(to right, rgba(0,0,0,0.08) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,0.08) 1px, transparent 1px);
-      background-size: 50px 50px;
+      background: var(--bg);
+      color: var(--text);
+      font-size: 16px;
+      line-height: 1.55;
     }}
     main {{
-      width: min(1180px, calc(100% - 32px));
+      width: min(720px, calc(100% - 32px));
       margin: 0 auto;
-      padding: 28px 0 48px;
+      padding: 28px 0 56px;
     }}
     nav {{
       display: flex;
       justify-content: space-between;
       align-items: center;
       gap: 16px;
-      padding: 12px 0 28px;
+      padding: 4px 0 20px;
       color: var(--muted);
-      font-size: 0.92rem;
-      font-family: "JetBrains Mono", monospace;
-      text-transform: uppercase;
-      font-weight: 800;
+      font-size: 0.95rem;
     }}
-    nav a {{ color: var(--text-primary); text-decoration: none; font-weight: 900; }}
-    nav a:hover {{ color: var(--accent-red); text-decoration: underline; text-underline-offset: 4px; }}
-    header {{
-      display: grid;
-      grid-template-columns: 1.05fr 0.95fr;
-      gap: 24px;
-      align-items: end;
-      margin-bottom: 22px;
-      border: 4px solid var(--text-primary);
-      background: var(--bg-color);
-      padding: 24px;
-    }}
+    nav a {{ color: var(--accent); text-decoration: none; font-weight: 600; }}
+    nav a:hover {{ text-decoration: underline; text-underline-offset: 3px; }}
+    header {{ margin-bottom: 20px; }}
     h1 {{
-      margin: 0;
-      font-family: "Archivo Black", Impact, sans-serif;
-      text-transform: uppercase;
-      font-size: clamp(2.25rem, 6vw, 5.4rem);
-      line-height: 0.86;
-      letter-spacing: -0.05em;
+      margin: 0 0 8px;
+      font-size: 1.75rem;
+      font-weight: 650;
+      line-height: 1.25;
+      letter-spacing: -0.02em;
     }}
     .eyebrow {{
-      color: var(--accent-red);
-      font-weight: 900;
-      text-transform: uppercase;
-      font-size: 0.82rem;
-      margin-bottom: 10px;
-      font-family: "JetBrains Mono", monospace;
-      letter-spacing: 0.08em;
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 0.9rem;
+      margin-bottom: 6px;
     }}
-    p {{ margin: 0; color: var(--muted); }}
+    p {{ margin: 0; }}
     .brief {{
       display: grid;
-      gap: 12px;
-      padding-bottom: 8px;
+      gap: 8px;
+      color: var(--muted);
     }}
     form, .result {{
-      background: var(--bg-color);
-      border: 4px solid var(--text-primary);
-      padding: 0;
-      box-shadow: 12px 12px 0 var(--text-primary);
-      overflow: hidden;
-    }}
-    form::before, .result::before {{
-      content: "/// SYSTEM DIAGNOSTIC ///";
-      display: block;
-      background: var(--text-primary);
-      color: var(--bg-color);
-      padding: 10px 14px;
-      font-family: "JetBrains Mono", monospace;
-      font-weight: 900;
-      letter-spacing: 0.08em;
-      font-size: 0.78rem;
-    }}
-    form > * {{
-      margin-left: 18px;
-      margin-right: 18px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 20px;
     }}
     .grid {{
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: 1fr 1fr;
       gap: 12px;
-      margin-top: 18px;
-      margin-bottom: 18px;
+      margin-bottom: 16px;
     }}
     label {{
       display: grid;
       gap: 6px;
-      font-weight: 800;
+      font-weight: 600;
       font-size: 0.9rem;
-      font-family: "JetBrains Mono", monospace;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
+      color: var(--muted);
     }}
     .span-2 {{ grid-column: span 2; }}
     input[type="text"], input[type="email"], select {{
       width: 100%;
-      border: 2px solid var(--text-primary);
-      padding: 11px 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px 12px;
       font: inherit;
+      color: var(--text);
       background: #fff;
-      color: var(--text-primary);
+    }}
+    input:focus, select:focus {{
+      outline: 2px solid #d5e1ff;
+      border-color: var(--accent);
     }}
     .question {{
-      border: 2px solid var(--text-primary);
-      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px 16px 12px;
       margin: 0 0 10px;
-      background: var(--surface-color);
+      background: #fff;
     }}
     legend {{
-      font-family: "Archivo Black", Impact, sans-serif;
-      text-transform: uppercase;
-      font-weight: 900;
-      padding: 0 6px;
-      letter-spacing: -0.02em;
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      font-weight: 600;
+      font-size: 1rem;
+      line-height: 1.4;
+      padding: 0;
+    }}
+    .q-num {{
+      flex: 0 0 auto;
+      width: 1.4rem;
+      color: var(--accent);
+      font-variant-numeric: tabular-nums;
     }}
     .scale-labels {{
       display: flex;
       justify-content: space-between;
       gap: 16px;
       color: var(--muted);
-      font-size: 0.84rem;
-      margin: 10px 0 4px;
-      font-family: "JetBrains Mono", monospace;
-      font-weight: 800;
-      text-transform: uppercase;
+      font-size: 0.875rem;
+      margin: 8px 0 2px;
     }}
-    input[type="range"] {{ width: 100%; accent-color: var(--accent-red); }}
+    input[type="range"] {{ width: 100%; accent-color: var(--accent); }}
     button {{
       border: 0;
-      background: var(--text-primary);
-      color: white;
-      font-family: "Archivo Black", Impact, sans-serif;
-      text-transform: uppercase;
-      letter-spacing: -0.02em;
-      font-size: clamp(1.5rem, 4vw, 3rem);
-      font-weight: 900;
-      padding: 18px 16px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      font-size: 1rem;
+      padding: 12px 16px;
+      border-radius: 10px;
       cursor: pointer;
-      width: calc(100% - 36px);
-      margin-bottom: 18px;
+      width: 100%;
+      margin-top: 8px;
     }}
-    button:hover {{ background: var(--accent-red); }}
+    button:hover {{ background: #183ea8; }}
     .result {{
       margin-top: 16px;
       display: none;
     }}
     .result h2 {{
-      margin: 18px 18px 8px;
-      font-family: "Archivo Black", Impact, sans-serif;
-      text-transform: uppercase;
-      font-size: clamp(2rem, 5vw, 4.4rem);
-      line-height: 0.9;
-      letter-spacing: -0.04em;
+      margin: 0 0 8px;
+      font-size: 1.35rem;
+      font-weight: 650;
+      line-height: 1.35;
+      letter-spacing: -0.01em;
     }}
-    .result > p {{ margin-left: 18px; margin-right: 18px; }}
+    .scoreline {{
+      margin: 0 0 12px;
+      color: var(--muted);
+    }}
+    .scoreline strong {{
+      color: var(--text);
+      font-size: 1.15rem;
+    }}
+    .summary {{ margin-bottom: 14px; }}
     .result-grid {{
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 14px;
-      margin: 14px 18px 18px;
+      grid-template-columns: 1fr;
+      gap: 12px;
     }}
     .result-panel {{
-      border: 2px solid var(--text-primary);
-      padding: 14px;
-      background: var(--surface-color);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 14px 16px;
+      background: #f6f7f9;
     }}
     .result-panel h3 {{
-      margin: 0 0 8px;
-      font-family: "JetBrains Mono", monospace;
-      text-transform: uppercase;
+      margin: 0 0 6px;
+      font-size: 0.95rem;
+      font-weight: 650;
+    }}
+    .result-panel p {{ color: var(--text); }}
+    ul {{ margin: 0; padding-left: 1.15rem; }}
+    li + li {{ margin-top: 6px; }}
+    .next-move {{
+      margin-top: 12px;
+      padding: 14px 16px;
+      border-left: 3px solid var(--accent);
+      background: #f4f7ff;
+      border-radius: 0 10px 10px 0;
+    }}
+    .next-move h3 {{
+      margin: 0 0 6px;
+      font-size: 0.95rem;
+      font-weight: 650;
+    }}
+    .meta {{
+      margin-top: 8px;
+      color: var(--muted);
       font-size: 0.9rem;
-      color: var(--accent-red);
     }}
-    ul {{ margin: 0; padding-left: 18px; color: var(--muted); }}
-    li + li {{ margin-top: 5px; }}
-    strong {{ color: var(--accent-red); }}
     .error {{
-      color: var(--accent-red);
-      font-weight: 800;
-      min-height: 24px;
+      color: #b42318;
+      font-weight: 600;
+      min-height: 1.4em;
       margin-top: 10px;
-      font-family: "JetBrains Mono", monospace;
-      text-transform: uppercase;
     }}
-    @media (max-width: 860px) {{
-      header {{ grid-template-columns: 1fr; }}
-      .grid {{ grid-template-columns: 1fr; }}
-      .span-2 {{ grid-column: auto; }}
-      .result-grid {{ grid-template-columns: 1fr; }}
-    }}
-    @media (max-width: 520px) {{
-      main {{ width: min(100% - 22px, 1060px); padding-top: 18px; }}
-      form, .result {{ padding: 14px; }}
+    @media (max-width: 640px) {{
+      .grid, .span-2 {{ grid-template-columns: 1fr; grid-column: auto; }}
       nav {{ align-items: flex-start; flex-direction: column; }}
     }}
   </style>
@@ -802,7 +789,7 @@ def render_page(config: dict, question_markup: str) -> str:
           question_id: node.dataset.questionId,
           dimension: node.dataset.dimension,
           answer_value: Number(input.value),
-          answer_label: node.querySelector("legend").textContent
+          answer_label: (node.querySelector(".q-text") || node.querySelector("legend")).textContent
         }};
       }});
       const payload = {{
@@ -830,33 +817,34 @@ def render_page(config: dict, question_markup: str) -> str:
         );
         result.style.display = "block";
         result.innerHTML = `
+          <p class="eyebrow">${{body.category}}</p>
           <h2>${{body.report.headline}}</h2>
-          <p><strong>Score:</strong> ${{body.score}} / ${{body.max_score}} | <strong>Category:</strong> ${{body.category}}</p>
-          <p>${{body.report.summary}}</p>
+          <p class="scoreline"><strong>${{body.score}}</strong> of ${{body.max_score}}</p>
+          <p class="summary">${{body.report.summary}}</p>
           <div class="result-grid">
             <div class="result-panel">
-              <h3>Industry Context</h3>
+              <h3>Industry context</h3>
               <p>${{body.report.industry_context}}</p>
             </div>
             <div class="result-panel">
-              <h3>Top Gaps</h3>
+              <h3>Top gaps</h3>
               ${{list(topGaps)}}
             </div>
             <div class="result-panel">
-              <h3>Recommended Infrastructure</h3>
+              <h3>Recommended infrastructure</h3>
               ${{list(body.report.recommended_infrastructure)}}
             </div>
             <div class="result-panel">
-              <h3>Phased Plan</h3>
+              <h3>Phased plan</h3>
               ${{list(body.report.phased_plan)}}
             </div>
           </div>
-          <div class="result-panel" style="margin-top:14px">
-            <h3>Highest Leverage Next Move</h3>
+          <aside class="next-move">
+            <h3>Highest-leverage next move</h3>
             <p>${{body.report.highest_leverage_next_move}}</p>
-            <p><strong>Next CTA:</strong> ${{body.next_cta}} | <strong>Route:</strong> ${{body.route_to}}</p>
-            <p><strong>Session:</strong> ${{body.session_id}}</p>
-          </div>
+            <p class="meta">${{body.next_cta}} · ${{body.route_to}}</p>
+            <p class="meta">Session ${{body.session_id}}</p>
+          </aside>
         `;
         result.scrollIntoView({{ behavior: "smooth", block: "start" }});
       }} catch (err) {{
