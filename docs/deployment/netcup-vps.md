@@ -90,6 +90,23 @@ curl -fsS "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
 
 Requests without the matching `X-Telegram-Bot-Api-Secret-Token` header get 401. Accepted updates return 200, are logged by `flow-gateway`, and are appended to `telegram/updates.jsonl` in the intake volume.
 
+## ArVA and the approval-gated handoff
+
+`arva-agent` is an official `nousresearch/hermes-agent` container on `flow-internal` only. It has its own `arva_data` volume as HERMES_HOME, its own Vertex service account (`ARVA_VERTEX_SA_FILE`, Vertex AI User only), and the seeded `deploy/live/arva/config.yaml` and `SOUL.md`. Its API server toolset is `todo` only: no terminal, file, browser, computer use, code execution, memory, web, or MCP. The seed step rewrites the config on every deploy.
+
+- `POST /arva/session` on the gateway (header `X-Arva-Token: $ARVA_SESSION_TOKEN`) sends one client turn to ArVA. Body: `{"session_id": null, "message": "...", "diagnostic_type": "bizbuilders"}`. The reply carries `session_id`; send it back on the next turn. When ArVA has every answer, the gateway submits the diagnostic itself. ArVA can't write anything else.
+- Every completed diagnostic (form or ArVA) is stored as `pending_approval` in `handoff/` in the intake volume, and the bot alerts `TELEGRAM_ALERT_CHAT_ID`.
+- Approve at `https://<desk>/handoff/` (desk password). Approval posts the item to the host bridge, which runs `hermes -z` with `web,memory,skills,todo`. Nothing reaches the host Hermes before approval.
+
+Host bridge install (once):
+
+```bash
+install -m 600 /dev/null /etc/flow-hermes-bridge.env
+echo "HERMES_BRIDGE_TOKEN=<same as .env>" >> /etc/flow-hermes-bridge.env
+cp deploy/live/hermes-bridge/flow-hermes-bridge.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now flow-hermes-bridge
+```
+
 ## Update
 
 ```bash

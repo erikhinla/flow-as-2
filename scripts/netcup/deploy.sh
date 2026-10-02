@@ -37,6 +37,10 @@ else
   export LIVE_BIND="${LIVE_BIND:-0.0.0.0}"
 fi
 
+if [[ -n "${ARVA_API_KEY:-}" ]]; then
+  profile+=(--profile arva)
+fi
+
 compose=(docker compose --env-file .env -f deploy/live/docker-compose.yml "${profile[@]}")
 "${compose[@]}" up -d --build
 "${compose[@]}" ps

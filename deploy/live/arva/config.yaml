@@ -1,0 +1,14 @@
+# ArVA client agent (arva-agent). Seeded into its own HERMES_HOME on every deploy.
+# Sandbox: no terminal, file, browser, computer-use, code execution, memory, web, or MCP.
+model:
+  provider: vertex
+  default: google/gemini-2.5-flash
+  max_tokens: 2048
+vertex:
+  region: global
+platform_toolsets:
+  api_server:
+    - todo
+  cli:
+    - todo
+mcp_servers: {}
