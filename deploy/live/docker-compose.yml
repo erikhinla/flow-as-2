@@ -151,6 +151,7 @@ services:
       - cp /seed/config.yaml /opt/data/config.yaml && cp /seed/SOUL.md /opt/data/SOUL.md && chown 10000:10000 /opt/data /opt/data/config.yaml /opt/data/SOUL.md && chmod 640 /opt/data/config.yaml /opt/data/SOUL.md
 
   arva-agent:
+    # Hermes Agent v0.21.5. No ports: reachable only on flow-internal.
     image: nousresearch/hermes-agent:v2026.9.24
     container_name: arva-agent
     profiles: ["arva"]

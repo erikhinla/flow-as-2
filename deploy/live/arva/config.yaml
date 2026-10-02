@@ -1,5 +1,7 @@
 # ArVA client agent (arva-agent). Seeded into its own HERMES_HOME on every deploy.
-# Sandbox: no terminal, file, browser, computer-use, code execution, memory, web, or MCP.
+# Hermes Agent v0.21.5 (image nousresearch/hermes-agent:v2026.9.24).
+# The `todo` toolset is the only one enabled. On this release that toolset is the todo_list tool.
+# No terminal, file, browser, computer-use, code execution, memory, web, or MCP.
 model:
   provider: vertex
   default: google/gemini-2.5-flash

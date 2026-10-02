@@ -31,7 +31,7 @@ RUN_LOCK = threading.Semaphore(1)
 
 
 def now() -> str:
-    return datetime.datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+    return datetime.datetime.now(datetime.UTC).replace(microsecond=0).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def write(path: pathlib.Path, data: dict) -> None:
