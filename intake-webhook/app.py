@@ -1,12 +1,14 @@
 import datetime
+import hmac
 import json
+import logging
 import os
 import pathlib
 import urllib.request
 import uuid
 from typing import Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -948,6 +950,72 @@ def diagnostic_submit(sub: DiagnosticSub):
         "next_cta": config["cta"],
         "route_to": config["route_to"],
     }
+
+
+TELEGRAM_LOG = logging.getLogger("flow.telegram")
+if not TELEGRAM_LOG.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s %(name)s %(levelname)s %(message)s"))
+    TELEGRAM_LOG.addHandler(_handler)
+TELEGRAM_LOG.setLevel(logging.INFO)
+TELEGRAM_UPDATE_KINDS = (
+    "message",
+    "edited_message",
+    "channel_post",
+    "edited_channel_post",
+    "callback_query",
+    "inline_query",
+    "my_chat_member",
+    "chat_member",
+)
+
+
+def telegram_update_summary(update: dict) -> dict:
+    """Small, log-safe view of a Telegram update."""
+    kind = next((key for key in TELEGRAM_UPDATE_KINDS if key in update), "other")
+    body = update.get(kind) if isinstance(update.get(kind), dict) else {}
+    message = body.get("message") if kind == "callback_query" else body
+    message = message if isinstance(message, dict) else {}
+    chat = message.get("chat") or {}
+    sender = body.get("from") or message.get("from") or {}
+    text = message.get("text") or body.get("data") or body.get("query") or ""
+    return {
+        "update_id": update.get("update_id"),
+        "kind": kind,
+        "chat_id": chat.get("id"),
+        "chat_type": chat.get("type"),
+        "from_id": sender.get("id"),
+        "from_username": sender.get("username"),
+        "text": str(text)[:200],
+    }
+
+
+@app.post("/telegram/webhook")
+async def telegram_webhook(request: Request):
+    """Receive Telegram bot updates. Telegram sends the secret in a header."""
+    secret = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+    if not secret:
+        raise HTTPException(status_code=503, detail="telegram webhook is not configured")
+    supplied = request.headers.get("x-telegram-bot-api-secret-token", "")
+    if not hmac.compare_digest(supplied.encode(), secret.encode()):
+        raise HTTPException(status_code=401, detail="unauthorized")
+    try:
+        update = await request.json()
+    except Exception:
+        update = {}
+    if not isinstance(update, dict):
+        update = {}
+    summary = telegram_update_summary(update)
+    TELEGRAM_LOG.info("telegram_update %s", json.dumps(summary, default=str))
+    try:
+        log_dir = INTAKE_DIR / "telegram"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.datetime.utcnow().isoformat() + "Z"
+        with (log_dir / "updates.jsonl").open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps({"received_at": stamp, "summary": summary, "update": update}, default=str) + "\n")
+    except OSError as exc:
+        TELEGRAM_LOG.warning("telegram_update_not_stored %s", exc)
+    return {"ok": True}
 
 
 @app.get("/intake/submissions")

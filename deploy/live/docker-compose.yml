@@ -16,6 +16,8 @@ services:
       BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:?BIZBRAIN_API_TOKEN must be set}
       FLOW_INTAKE_URL: http://bizbrain-lite:8000/v1/intake/task
       INTAKE_DIR: /data/intake
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
     volumes:
       - intake_data:/data/intake
     ports:

@@ -23,7 +23,13 @@ set +a
 python3 shared/live_secrets.py
 
 profile=()
-if [[ -n "${DIAGNOSTIC_HOST:-}" || -n "${DESK_HOST:-}" ]]; then
+if [[ "${EXTERNAL_PROXY:-}" == "1" ]]; then
+  # A proxy already on the host terminates HTTPS. Keep the app on localhost.
+  if [[ -n "${DIAGNOSTIC_HOST:-}" ]]; then
+    export DIAGNOSTIC_PUBLIC_URL="${DIAGNOSTIC_PUBLIC_URL:-https://${DIAGNOSTIC_HOST}/diagnostic?type=bizbuilders}"
+  fi
+  export LIVE_BIND="${LIVE_BIND:-127.0.0.1}"
+elif [[ -n "${DIAGNOSTIC_HOST:-}" || -n "${DESK_HOST:-}" ]]; then
   export DIAGNOSTIC_PUBLIC_URL="${DIAGNOSTIC_PUBLIC_URL:-https://${DIAGNOSTIC_HOST}/diagnostic?type=bizbuilders}"
   export LIVE_BIND="${LIVE_BIND:-127.0.0.1}"
   profile=(--profile tls)
@@ -35,7 +41,10 @@ compose=(docker compose --env-file .env -f deploy/live/docker-compose.yml "${pro
 "${compose[@]}" up -d --build
 "${compose[@]}" ps
 
-if [[ ${#profile[@]} -gt 0 ]]; then
+if [[ "${EXTERNAL_PROXY:-}" == "1" ]]; then
+  echo "Diagnostic: http://${LIVE_BIND}:${DIAGNOSTIC_PORT:-8080}/ (behind the host proxy)"
+  echo "Desk: http://${LIVE_BIND}:${DESK_PORT:-5173}/ (behind the host proxy)"
+elif [[ ${#profile[@]} -gt 0 ]]; then
   echo "Diagnostic: https://${DIAGNOSTIC_HOST}/diagnostic?type=bizbuilders"
   echo "Desk: https://${DESK_HOST}/"
 else

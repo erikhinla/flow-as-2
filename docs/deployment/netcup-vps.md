@@ -52,6 +52,44 @@ ACME_EMAIL=you@example.com
 
 Run the deploy script again. It binds the app ports to localhost and starts Caddy for certificates. The desk link uses `https://diagnostics.example.com/diagnostic?type=bizbuilders`.
 
+## Behind an existing host proxy
+
+If Caddy (or another proxy) already owns ports 80 and 443 on the VPS, do not start the stack's Caddy. Set:
+
+```env
+EXTERNAL_PROXY=1
+LIVE_BIND=127.0.0.1
+DIAGNOSTIC_PORT=18080
+DESK_PORT=5173
+DIAGNOSTIC_PUBLIC_URL=https://diagnostics.example.com/diagnostic?type=bizbuilders
+```
+
+Leaving `DIAGNOSTIC_HOST` and `DESK_HOST` blank also skips the `tls` profile. Add site blocks to the host proxy:
+
+```caddy
+diagnostics.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:18080
+}
+
+desk.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:5173
+}
+```
+
+## Telegram webhook
+
+The gateway serves `POST /telegram/webhook` on the diagnostic host. Set `TELEGRAM_BOT_TOKEN` and a random `TELEGRAM_WEBHOOK_SECRET` in `.env`, redeploy, then register the webhook with the same secret:
+
+```bash
+curl -fsS "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  --data-urlencode "url=https://diagnostics.example.com/telegram/webhook" \
+  --data-urlencode "secret_token=$TELEGRAM_WEBHOOK_SECRET"
+```
+
+Requests without the matching `X-Telegram-Bot-Api-Secret-Token` header get 401. Accepted updates return 200, are logged by `flow-gateway`, and are appended to `telegram/updates.jsonl` in the intake volume.
+
 ## Update
 
 ```bash
