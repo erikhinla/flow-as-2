@@ -1,0 +1,13 @@
+{
+	email {$ACME_EMAIL}
+}
+
+{$DIAGNOSTIC_HOST} {
+	encode gzip
+	reverse_proxy flow-gateway:8080
+}
+
+{$DESK_HOST} {
+	encode gzip
+	reverse_proxy flow-dashboard:80
+}

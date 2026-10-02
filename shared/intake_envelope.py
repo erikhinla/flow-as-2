@@ -117,15 +117,17 @@ def build_diagnostic_task_envelope(record: dict[str, Any], task_id: str | None =
     category = str(record.get("category") or "unscored")
     score = record.get("score")
     max_score = record.get("max_score")
+    report = record.get("report") if isinstance(record.get("report"), dict) else {}
+    lead = record.get("lead") if isinstance(record.get("lead"), dict) else {}
+    who = str(lead.get("company") or lead.get("name") or "this client")
+    headline = str(report.get("headline") or f"{category} diagnostic for {who}")
+    next_move = str(report.get("highest_leverage_next_move") or "Deliver the roadmap.")
     return _envelope(
         task_id=task_id or new_task_id(),
         source="landing_page",
-        title=f"Classify {diagnostic_type} diagnostic intake",
-        goal=(
-            f"Record the {diagnostic_type} diagnostic as one classification task "
-            f"({category}, score {score}/{max_score}) owned by alpha."
-        ),
-        notes="Diagnostic intake entered the governed registry instead of a shadow file.",
+        title=headline[:200],
+        goal=f"{report.get('summary') or headline} Next move: {next_move}"[:1000],
+        notes="Client diagnostic report is the deliverable. Registry acceptance stores the roadmap.",
         context_refs=["docs/USABLE_FLOW_ASAP.md", "docs/FLOW_AGENT_OS_SPEC_PATCH_v1.md"],
         extra_inputs={
             "session_id": record.get("session_id"),
@@ -134,7 +136,15 @@ def build_diagnostic_task_envelope(record: dict[str, Any], task_id: str | None =
             "score": score,
             "max_score": max_score,
             "route_to": record.get("route_to"),
-            "lead": record.get("lead") or {},
+            "lead": lead,
+            "client_result": {
+                "headline": headline,
+                "summary": report.get("summary"),
+                "top_gaps": report.get("top_gaps") or [],
+                "phased_plan": report.get("phased_plan") or [],
+                "highest_leverage_next_move": next_move,
+                "next_cta": record.get("next_cta"),
+            },
         },
     )
 

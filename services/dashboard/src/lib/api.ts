@@ -1,5 +1,6 @@
 export function apiFetch(url: string, opts: RequestInit = {}): Promise<Response> {
-  const token = localStorage.getItem('flow_api_token')
+  const stored = localStorage.getItem('flow_api_token')
+  const token = stored || (import.meta.env.DEV ? 'change-me' : null)
   return fetch(url, {
     ...opts,
     headers: {

@@ -9,6 +9,7 @@ services:
       WEBHOOK_API_KEY: ${WEBHOOK_API_KEY:-change-me}
       BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:-change-me}
       FLOW_INTAKE_URL: ${FLOW_INTAKE_URL:-http://bizbrain-lite:8000/v1/intake/task}
+      INTAKE_DIR: /data/intake
     depends_on:
       bizbrain-lite:
         condition: service_healthy
@@ -34,10 +35,12 @@ services:
       SOCIAL_HUB_API_ORIGIN: ${SOCIAL_HUB_API_ORIGIN:-http://localhost:5173}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      INTAKE_RESULTS_DIR: /data/intake
     volumes:
       - ${HOME}/.openclaw/state:/root/.openclaw/state
       - ./runtime/reviews:/app/runtime/reviews
       - ./runtime/queues:/app/runtime/queues
+      - intake_data:/data/intake
     ports:
       - "18001:8000"
     depends_on:
@@ -73,39 +76,32 @@ services:
       - flow-internal
     labels:
       - traefik.enable=true
-      - traefik.http.routers.flow-dashboard.rule=Host(`flow.srv1863070.hstgr.cloud`)
+      - traefik.http.routers.flow-dashboard.rule=Host(`${DESK_HOST:-localhost}`)
       - traefik.http.routers.flow-dashboard.entrypoints=websecure
       - traefik.http.routers.flow-dashboard.tls=true
       - traefik.http.routers.flow-dashboard.tls.certresolver=letsencrypt
       - traefik.http.services.flow-dashboard.loadbalancer.server.port=80
 
   hermes-agent:
-    image: nousresearch/hermes-agent@sha256:ca249f4d78f317a6cd3f785940c72801b8abe8c7c4fa019d0c3cd25e5966ca74
+    image: nousresearch/hermes-agent:latest
     container_name: hermes-agent
     restart: unless-stopped
-    command: ["python3", "/flow/hermes_runner.py"]
+    # Official Nous gateway. Do not replace the image entrypoint or this command
+    # with the local HTTP adapter. Telegram is a gateway platform, not a Python script.
+    command: ["gateway", "run"]
     environment:
-      FLOW_RUNTIME_PORT: "18789"
-      FLOW_RUNTIME_TIMEOUT_SECONDS: ${FLOW_RUNTIME_TIMEOUT_SECONDS:-900}
-      HERMES_AGENT_MODEL: ${HERMES_AGENT_MODEL:-openai/gpt-4o-mini}
-      HERMES_UPSTREAM_COMMIT: 7bfbfa3e341a8fe0315170bb7e2ad79e2af44da4
-      HERMES_UID: "1000"
-      HERMES_GID: "1000"
-      HERMES_WRITE_SAFE_ROOT: /opt/data:/workspace
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:?OPENROUTER_API_KEY must be set}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     volumes:
       - hermes_data:/opt/data
-      - ./services/agent_runtimes/hermes_runner.py:/flow/hermes_runner.py:ro
-      - ./runtime/agent-workspace:/workspace
-      - ./canon/TBTX_CANON:/workspace/TBTX_CANON:ro
-    expose:
-      - "18789"
+    ports:
+      - "8642:8642"
     healthcheck:
-      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18789/health', timeout=10)"]
+      test: ["CMD", "hermes", "--version"]
       interval: 30s
       timeout: 15s
       retries: 5
-      start_period: 30s
+      start_period: 40s
     networks:
       - flow-internal
 

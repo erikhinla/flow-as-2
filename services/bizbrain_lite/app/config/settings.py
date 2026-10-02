@@ -1,7 +1,17 @@
+import sys
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+try:
+    from live_secrets import assert_production_token
+except ImportError:
+    _shared = Path(__file__).resolve().parents[4] / "shared"
+    if str(_shared) not in sys.path:
+        sys.path.insert(0, str(_shared))
+    from live_secrets import assert_production_token
 
 
 class Settings(BaseSettings):

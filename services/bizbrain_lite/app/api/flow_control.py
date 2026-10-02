@@ -68,7 +68,7 @@ def _model_job_payload(job: JobRecord) -> dict[str, Any]:
         "updated_at": job.updated_at.isoformat() if job.updated_at else None,
         "completed_at": job.completed_at.isoformat() if job.completed_at else None,
         "artifact_path": job.result_pointer,
-        "output_required": job.output_required,
+        "output_required": getattr(job, "output_required", None),
         "error_message": job.error_message,
     }
 

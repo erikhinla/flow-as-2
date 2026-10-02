@@ -1,9 +1,16 @@
 # FLOW Agent AS Deployment
 
-This file is the top-level deployment index. The detailed deployment runbooks live in:
+The live client product is the diagnostic, the governed intake registry, and the operator desk. Deploy that on a Netcup VPS with `docs/deployment/netcup-vps.md`:
 
-- `docs/deployment/hostinger-vps.md`
-- `docs/deployment/portainer-stack.md`
+```bash
+cp deploy/live/env.example .env
+# set real secrets, at least 24 characters each
+bash scripts/netcup/deploy.sh
+```
+
+That stack is `deploy/live/docker-compose.yml`. It does not start the agent runtimes and it refuses placeholder secrets.
+
+The full agent stack remains `docker-compose.yml`. Its older runbooks are `docs/deployment/hostinger-vps.md` and `docs/deployment/portainer-stack.md`.
 
 ## Current Deployment Shape
 
@@ -46,9 +53,9 @@ At minimum, configure:
 
 Use `.env.example` as the full reference and keep production secrets out of git.
 
-## Hostinger VPS
+## Full agent stack on a VPS
 
-Use the Hostinger runbook:
+Use the older full-stack runbook when the agent runtimes are in scope:
 
 ```bash
 ssh root@<VPS_IP>

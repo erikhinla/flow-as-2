@@ -4,8 +4,10 @@ import { useQuery } from '@tanstack/react-query'
 import { Activity, AlertCircle, CheckCircle } from 'lucide-react'
 
 interface HealthStatus {
-  status: string
-  timestamp: string
+  status?: string
+  redis_ok?: boolean
+  postgres_ok?: boolean
+  timestamp?: string
   version?: string
 }
 
@@ -30,7 +32,7 @@ export function SystemHealth() {
     refetchInterval: 10000, // Check every 10 seconds
   })
 
-  const isHealthy = health?.status === 'healthy'
+  const isHealthy = health?.status === 'healthy' || (health?.redis_ok === true && health?.postgres_ok === true)
   const flowHealthy = flowHealth?.status === 'healthy'
 
   if (isLoading) {

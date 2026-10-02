@@ -1,0 +1,158 @@
+# Client product for a live VPS: diagnostic, control plane, and operator desk.
+# The agent runtimes are not part of this stack.
+#
+#   cp deploy/live/env.example .env
+#   bash scripts/netcup/deploy.sh
+
+services:
+  flow-gateway:
+    build:
+      context: ../..
+      dockerfile: intake-webhook/Dockerfile
+    container_name: flow-gateway
+    restart: unless-stopped
+    environment:
+      WEBHOOK_API_KEY: ${WEBHOOK_API_KEY:?WEBHOOK_API_KEY must be set}
+      BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:?BIZBRAIN_API_TOKEN must be set}
+      FLOW_INTAKE_URL: http://bizbrain-lite:8000/v1/intake/task
+      INTAKE_DIR: /data/intake
+    volumes:
+      - intake_data:/data/intake
+    ports:
+      - "${LIVE_BIND:-0.0.0.0}:${DIAGNOSTIC_PORT:-8080}:8080"
+    depends_on:
+      bizbrain-lite:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - flow-internal
+
+  bizbrain-lite:
+    build:
+      context: ../..
+      dockerfile: services/bizbrain_lite/Dockerfile
+    container_name: flow-orchestrator
+    restart: unless-stopped
+    environment:
+      BIZBRAIN_ENV: prod
+      BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:?BIZBRAIN_API_TOKEN must be set}
+      BIZBRAIN_REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://flow_user:${FLOW_DB_PASSWORD:?FLOW_DB_PASSWORD must be set}@postgres:5432/flow_agent_os
+      INTAKE_RESULTS_DIR: /data/intake
+      SOCIAL_HUB_API_ORIGIN: ${SOCIAL_HUB_API_ORIGIN:-http://localhost:5173}
+    volumes:
+      - intake_data:/data/intake
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/v1/health', timeout=5)"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    networks:
+      - flow-internal
+
+  flow-dashboard:
+    build:
+      context: ../..
+      dockerfile: services/dashboard/Dockerfile
+    container_name: flow-dashboard
+    restart: unless-stopped
+    environment:
+      DASHBOARD_BASIC_AUTH_USER: ${DASHBOARD_BASIC_AUTH_USER:-admin}
+      DASHBOARD_BASIC_AUTH_PASSWORD: ${DASHBOARD_BASIC_AUTH_PASSWORD:?DASHBOARD_BASIC_AUTH_PASSWORD must be set}
+      BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:?BIZBRAIN_API_TOKEN must be set}
+      DIAGNOSTIC_PUBLIC_URL: ${DIAGNOSTIC_PUBLIC_URL:-}
+    ports:
+      - "${LIVE_BIND:-0.0.0.0}:${DESK_PORT:-5173}:80"
+    depends_on:
+      bizbrain-lite:
+        condition: service_healthy
+      flow-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - flow-internal
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flow-internal
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: flow_user
+      POSTGRES_PASSWORD: ${FLOW_DB_PASSWORD:?FLOW_DB_PASSWORD must be set}
+      POSTGRES_DB: flow_agent_os
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U flow_user -d flow_agent_os"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - flow-internal
+
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: flow-caddy
+    restart: unless-stopped
+    profiles: ["tls"]
+    environment:
+      DIAGNOSTIC_HOST: ${DIAGNOSTIC_HOST:-}
+      DESK_HOST: ${DESK_HOST:-}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      flow-gateway:
+        condition: service_healthy
+      flow-dashboard:
+        condition: service_healthy
+    networks:
+      - flow-internal
+
+networks:
+  flow-internal:
+    name: flow-internal
+    driver: bridge
+
+volumes:
+  intake_data:
+  redis_data:
+  postgres_data:
+  caddy_data:
+  caddy_config:

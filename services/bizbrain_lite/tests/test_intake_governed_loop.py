@@ -97,6 +97,18 @@ def test_intake_envelope_is_governed(builder, payload, source) -> None:
     assert envelope["status"] == "pending"
 
 
+def test_null_win_still_normalizes() -> None:
+    from app.services.task_envelope_v2 import normalize_task_envelope
+
+    envelope = build_diagnostic_task_envelope(_diagnostic_record())
+    envelope["win"] = None
+    envelope["output"] = None
+    normalized = normalize_task_envelope(envelope)
+    assert normalized["risk_tier"] == "reputation"
+    assert normalized["owner_role"] == "alpha"
+    assert "Analytical Engines" in normalized["title"] or "Ada" in normalized["title"]
+
+
 def test_envelope_queue_ack_and_reflection() -> None:
     async def _run() -> None:
         envelope = build_diagnostic_task_envelope(_diagnostic_record())
