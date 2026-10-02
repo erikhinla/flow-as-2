@@ -40,6 +40,12 @@ case "$diagnostic_url" in
 esac
 printf 'window.__FLOW_DESK__ = { diagnosticUrl: "%s" };\n' "$diagnostic_url" > /usr/share/nginx/html/desk-config.js
 printf 'proxy_set_header X-API-Token "%s";\n' "$BIZBRAIN_API_TOKEN" > /etc/nginx/api-token.conf
+if [ -n "${HANDOFF_DESK_TOKEN:-}" ]; then
+  reject_placeholder "$HANDOFF_DESK_TOKEN" "HANDOFF_DESK_TOKEN"
+  printf 'proxy_set_header X-Desk-Token "%s";\n' "$HANDOFF_DESK_TOKEN" > /etc/nginx/handoff-token.conf
+else
+  printf '# HANDOFF_DESK_TOKEN not set: the gateway rejects /handoff/\n' > /etc/nginx/handoff-token.conf
+fi
 
 # Rate limiting configuration with sane defaults
 : "${RATE_LIMIT_DASHBOARD_AUTH:=10r/m}"

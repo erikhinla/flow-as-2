@@ -53,7 +53,8 @@ def main() -> int:
     )
     missing = [name for name in names if not secret_is_live(os.environ.get(name, ""))]
     hosts = (os.environ.get("DIAGNOSTIC_HOST", "").strip(), os.environ.get("DESK_HOST", "").strip())
-    if any(hosts) and (not all(hosts) or not os.environ.get("ACME_EMAIL", "").strip()):
+    external_proxy = os.environ.get("EXTERNAL_PROXY", "").strip() == "1"
+    if any(hosts) and not external_proxy and (not all(hosts) or not os.environ.get("ACME_EMAIL", "").strip()):
         missing.append("DIAGNOSTIC_HOST, DESK_HOST, and ACME_EMAIL")
     if missing:
         print(

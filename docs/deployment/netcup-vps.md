@@ -52,6 +52,63 @@ ACME_EMAIL=you@example.com
 
 Run the deploy script again. It binds the app ports to localhost and starts Caddy for certificates. The desk link uses `https://diagnostics.example.com/diagnostic?type=bizbuilders`.
 
+## Behind an existing host proxy
+
+If Caddy (or another proxy) already owns ports 80 and 443 on the VPS, do not start the stack's Caddy. Set:
+
+```env
+EXTERNAL_PROXY=1
+LIVE_BIND=127.0.0.1
+DIAGNOSTIC_PORT=18080
+DESK_PORT=5173
+DIAGNOSTIC_PUBLIC_URL=https://diagnostics.example.com/diagnostic?type=bizbuilders
+```
+
+Leaving `DIAGNOSTIC_HOST` and `DESK_HOST` blank also skips the `tls` profile. Add site blocks to the host proxy:
+
+```caddy
+diagnostics.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:18080
+}
+
+desk.example.com {
+	encode gzip
+	reverse_proxy 127.0.0.1:5173
+}
+```
+
+## Telegram webhook
+
+The gateway serves `POST /telegram/webhook` on the diagnostic host. Set `TELEGRAM_BOT_TOKEN` and a random `TELEGRAM_WEBHOOK_SECRET` in `.env`, redeploy, then register the webhook with the same secret:
+
+```bash
+curl -fsS "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  --data-urlencode "url=https://diagnostics.example.com/telegram/webhook" \
+  --data-urlencode "secret_token=$TELEGRAM_WEBHOOK_SECRET"
+```
+
+Requests without the matching `X-Telegram-Bot-Api-Secret-Token` header get 401. Accepted updates return 200, are logged by `flow-gateway`, and are appended to `telegram/updates.jsonl` in the intake volume.
+
+## ArVA and the approval-gated handoff
+
+`arva-agent` is the official image `nousresearch/hermes-agent:v2026.9.24` (Hermes Agent v0.21.5) on `flow-internal` only. It publishes no ports. It has its own `arva_data` volume as HERMES_HOME, its own Vertex service account (`ARVA_VERTEX_SA_FILE`, Vertex AI User only), model `google/gemini-2.5-flash`, and the seeded `deploy/live/arva/config.yaml` and `SOUL.md`. The only enabled toolset is `todo`, which on v0.21.5 is the `todo_list` tool: no terminal, file, browser, computer use, code execution, memory, web, or MCP. The seed step rewrites the config on every deploy.
+
+- `POST /arva/session` on the gateway (header `X-Arva-Token: $ARVA_SESSION_TOKEN`) sends one client turn to ArVA. Body: `{"session_id": null, "message": "...", "diagnostic_type": "bizbuilders"}`. The reply carries `session_id`; send it back on the next turn. When ArVA has every answer, the gateway submits the diagnostic itself. ArVA can't write anything else.
+- Every completed diagnostic (form or ArVA) is stored as `pending_approval` in `handoff/` in the intake volume, and the bot alerts `TELEGRAM_ALERT_CHAT_ID`.
+- Approve at `https://<desk>/handoff/` (desk password). Nginx adds `X-Desk-Token`. Approval posts the item to the host bridge. Nothing reaches the host Hermes before approval.
+
+The host service `flow-hermes-bridge` listens on `172.17.0.1:18790` (docker0 only) and runs `/usr/local/bin/hermes -z` with toolsets `web,memory,skills,todo`. Set `HERMES_BRIDGE_URL=http://172.17.0.1:18790`. The process does not listen on `0.0.0.0`.
+
+Host bridge install (once):
+
+```bash
+install -m 600 /dev/null /etc/flow-hermes-bridge.env
+echo "HERMES_BRIDGE_TOKEN=<same as .env>" >> /etc/flow-hermes-bridge.env
+cp deploy/live/hermes-bridge/flow-hermes-bridge.service /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now flow-hermes-bridge
+```
+
 ## Update
 
 ```bash
