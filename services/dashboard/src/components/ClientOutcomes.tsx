@@ -32,9 +32,20 @@ type ClientResult = {
   created: string
 }
 
+declare global {
+  interface Window {
+    __FLOW_DESK__?: { diagnosticUrl?: string }
+  }
+}
+
 function percent(score: number, max: number) {
   if (!max) return 0
   return Math.round((score / max) * 100)
+}
+
+function diagnosticHref() {
+  const configured = window.__FLOW_DESK__?.diagnosticUrl?.trim()
+  return configured || '/diagnostic?type=bizbuilders'
 }
 
 export function ClientOutcomes() {
@@ -67,7 +78,7 @@ export function ClientOutcomes() {
           Open the BizBuilders readiness diagnostic, answer as the client, and submit.
           The score, constraint, and phased roadmap appear on this desk.
         </p>
-        <a href="http://127.0.0.1:8080/diagnostic?type=bizbuilders">Start a client diagnostic</a>
+        <a href={diagnosticHref()}>Start a client diagnostic</a>
       </section>
     )
   }

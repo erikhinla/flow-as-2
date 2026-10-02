@@ -10,6 +10,7 @@ COPY services/bizbrain_lite/README.md /app/README.md
 COPY services/bizbrain_lite/.env.example /app/.env.example
 COPY services/bizbrain_lite/alembic.ini /app/alembic.ini
 COPY services/bizbrain_lite/app /app/app
+COPY shared/live_secrets.py /app/live_secrets.py
 COPY services/bizbrain_lite/docs /app/docs
 COPY scripts /app/scripts
 COPY schemas /app/schemas

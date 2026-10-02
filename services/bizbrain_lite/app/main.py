@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import agents, artifacts, handoffs, health, tasks, threads, flow_health, hermes_skills, openclaw_intake, agent_zero_reviews, performance, flow_control, client_diagnostics
-from app.config.settings import get_settings
+from app.config.settings import assert_production_token, get_settings
 from app.config.database import close_db, init_db
 from app.services.redis_store import redis_store
 from app.services.skill_extraction_job import SkillExtractionJob
@@ -50,6 +50,8 @@ redis_queue_service = None
 async def startup_services():
     """Initialize all FLOW services on app startup"""
     global skill_extraction_job, redis_queue_service
+
+    assert_production_token(settings.bizbrain_env, settings.bizbrain_api_token)
 
     try:
         await init_db()

@@ -9,6 +9,7 @@ services:
       WEBHOOK_API_KEY: ${WEBHOOK_API_KEY:-change-me}
       BIZBRAIN_API_TOKEN: ${BIZBRAIN_API_TOKEN:-change-me}
       FLOW_INTAKE_URL: ${FLOW_INTAKE_URL:-http://bizbrain-lite:8000/v1/intake/task}
+      INTAKE_DIR: /data/intake
     depends_on:
       bizbrain-lite:
         condition: service_healthy
@@ -34,10 +35,12 @@ services:
       SOCIAL_HUB_API_ORIGIN: ${SOCIAL_HUB_API_ORIGIN:-http://localhost:5173}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       DISCORD_WEBHOOK_URL: ${DISCORD_WEBHOOK_URL:-}
+      INTAKE_RESULTS_DIR: /data/intake
     volumes:
       - ${HOME}/.openclaw/state:/root/.openclaw/state
       - ./runtime/reviews:/app/runtime/reviews
       - ./runtime/queues:/app/runtime/queues
+      - intake_data:/data/intake
     ports:
       - "18001:8000"
     depends_on:
@@ -73,7 +76,7 @@ services:
       - flow-internal
     labels:
       - traefik.enable=true
-      - traefik.http.routers.flow-dashboard.rule=Host(`flow.srv1863070.hstgr.cloud`)
+      - traefik.http.routers.flow-dashboard.rule=Host(`${DESK_HOST:-localhost}`)
       - traefik.http.routers.flow-dashboard.entrypoints=websecure
       - traefik.http.routers.flow-dashboard.tls=true
       - traefik.http.routers.flow-dashboard.tls.certresolver=letsencrypt
